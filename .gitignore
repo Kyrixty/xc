@@ -1,0 +1,6 @@
+# Binaries
+*.env
+*.exe
+
+# Dirs
+build/
