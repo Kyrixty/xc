@@ -2,7 +2,7 @@ if [[ ! -d dist ]]; then
     mkdir build
 fi
 
-time gcc -Iinclude/ -g3 src/*.c -o dist/xc.exe
+time gcc -Wall -Iinclude/ -g3 src/*.c -o dist/xc.exe
 (( code = $? ))
 
 if [[ $code -ne 0 ]]; then

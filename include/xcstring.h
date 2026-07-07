@@ -21,10 +21,10 @@ XcStringView xcs_trim(XcStringView* xcs);
 XcStringView xcs_collect(XcStringView* xcs, int (*predicate)(int c));
 XcStringView xcs_collect_until(XcStringView* xcs, int (*predicate)(int c));
 XcStringView xcs_skip(XcStringView* xcs, int (*predicate)(int c));
-XcStringView xcs_skip_until(XcStringView* xcs, int(*predicate)(int c));
+XcStringView xcs_skip_until_after(XcStringView* xcs, int(*predicate)(int c));
 
 #define XCS_FMT "%.*s"
-#define XCS_Arg(xcs) (xcs).count, (xcs).data
+#define XCS_Arg(xcs) (int)(xcs).count, (xcs).data
 
 #define XC_STRING_IMPL
 #ifdef XC_STRING_IMPL
@@ -76,25 +76,34 @@ XcStringView xcs_collect_until(XcStringView* xcs, int (*predicate)(int c)) {
 XcStringView xcs_skip(XcStringView* xcs, int (*predicate)(int c)) {
     size_t i = 0;
     while (i < xcs->count && predicate(xcs->data[i])) {
+        printf("%d\n", predicate(xcs->data[i]));
         i++;
     }
-    return (XcStringView) {
-        .__data = xcs->__data,
-        .data = xcs->data + i,
-        .count = xcs->count - i,
-    };
+    XcStringView s = *xcs;
+    if (i < xcs->count) {
+        xcs_chop_left(&s, i);
+    } else {
+        xcs_chop_left(&s, s.count);
+    }
+    return s;
+
 }
 
-XcStringView xcs_skip_until(XcStringView* xcs, int(*predicate)(int c)) {
+XcStringView xcs_skip_until_after(XcStringView* xcs, int(*predicate)(int c)) {
     size_t i = 0;
     while (i < xcs->count && !predicate(xcs->data[i])) {
         i++;
     }
-    return (XcStringView) {
-        .__data = xcs->__data,
-        .data = xcs->data + i,
-        .count = xcs->count - i,
-    };
+    if (i < xcs->count) {
+        return (XcStringView) {
+            .__data = xcs->__data,
+            .data = xcs->data + i + 1,
+            .count = xcs->count - i - 1,
+        };
+    }
+    XcStringView s = *xcs;
+    xcs_chop_left(&s, s.count);
+    return s;
 }
 
 XcStringView xcs_trim_left(XcStringView* xcs) {
