@@ -1,10 +1,13 @@
 #include <stdio.h>
 #define XC_STRING_IMPL
 #include "xcstring.h"
+#include "arena.h"
 
 int no_s_allowed(int c) {
     return c == 's';
 }
+
+
 
 int main() {
     XcStringView s = xcs(" this is a test  \n\t\t\t");

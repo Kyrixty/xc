@@ -4,7 +4,7 @@
 
 #define ARENA_BASE_POS (sizeof(arena_t))
 #define ARENA_ALIGN (WORD_SIZE)
-#define ALIGN_UP_POW2(n, p) (((u64)(n) + ((u64)(p) - 1) & (~((u64)(p) - 1))))
+#define ALIGN_UP_POW2(n, p) ((((u64)(n) + ((u64)(p) - 1)) & (~((u64)(p) - 1))))
 
 void arena_oom() {
     exit(ARENA_ERR_OUTOFMEM);
@@ -23,7 +23,7 @@ arena_t* arena_init(u64 capacity) {
  * Destroys the arena. Any data stored in the data
  * should be presumed to be junk after this function returns.
  */
-void* arena_destroy(arena_t* arena) {
+void arena_destroy(arena_t* arena) {
     free(arena);
 }
 void* arena_alloc(arena_t* arena, u64 n_elems, u64 elem_size, b32 non_zero) {

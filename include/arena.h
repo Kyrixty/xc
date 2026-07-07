@@ -16,6 +16,7 @@ typedef struct arena
 #define ALLOC_STRUCT_NZ(arena, T) ((T*)arena_alloc((arena), 1, sizeof(T), true))
 #define ALLOC_ARRAY(arena, T, n) ((T*)arena_alloc((arena), (n), sizeof(T), false))
 #define ALLOC_ARRAY_NZ(arena, T) ((T*)arena_alloc((arena), (n), sizeof(T), true))
+#define ARENA_PTR(arena) ((u8*)(arena) + (arena)->pos + sizeof(arena_t))
 
 /**
  * Initializes arena with capacity `capacity`.
@@ -25,7 +26,7 @@ arena_t*    arena_init(u64 capacity);
  * Destroys the arena. Any data stored in the data
  * should be presumed to be junk after this function returns.
  */
-void*       arena_destroy(arena_t* arena);
+void       arena_destroy(arena_t* arena);
 /**
  * Pushes memory onto the arena stack.
  * Returns NULL if fail, otherwise a pointer to the memory 
