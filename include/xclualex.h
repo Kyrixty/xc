@@ -1,5 +1,6 @@
 #ifndef XC_LLEX_H
 #define XC_LLEX_H
+#include "arena.h"
 
 /**
  * @TWOFACE: This token has a different meaning depending on surrounding symbols.
@@ -100,8 +101,28 @@ typedef struct {
 } XcLuaToken;
 
 typedef struct {
-
+    XcLuaToken* tokens;
+    size_t n_tokens;
+} XcLuaTokens;
+typedef struct {
+    int x;
 } XcLuaLexer;
 
+#ifdef XC_IMPL
+#define XC_LUALEX_IMPL
+#endif
+
+#define XC_LUALEX_IMPL
+#ifdef XC_LUALEX_IMPL
+#include <stdio.h>
+
+XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f) {
+    fseek(f, 0, SEEK_END);
+    long flen = ftell(f);
+    char* buf = ALLOC_ARRAY(mem, char, flen);
+    fread(buf, 1, flen, f);
+}
+
+#endif
 
 #endif

@@ -1,19 +1,27 @@
 #include <stdio.h>
-#define XC_STRING_IMPL
-#include "xcstring.h"
 #include "arena.h"
+#define XC_IMPL
+#include "xclua.h"
+#include "xcfs.h"
+
 
 int no_s_allowed(int c) {
     return c == 's';
 }
 
+static arena_t* globalArena;
 
+int main(int argc, char** argv) {
+    // BUG: hard-coded memory limit
+    globalArena = arena_init(MB(64));
 
-int main() {
-    XcStringView s = xcs(" this is a test  \n\t\t\t");
-    s = xcs_trim(&s);
-    while (!xcs_empty(&s)) {
-        printf("|"XCS_FMT"|""\n", XCS_Arg(s));
-        s = xcs_skip_until_after(&s, no_s_allowed);
+    if (argc != 2) {
+        fprintf(stderr, "Usage: xc <path_to_lua_file>");
     }
+    FILE* f = xc_fs_open(argv[1], "r");
+    xc_lua_tokenize(globalArena, f);
+
+    goto XC_CLEANUP;
+XC_CLEANUP:
+    xc_fs_close(f);
 }

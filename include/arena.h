@@ -1,6 +1,6 @@
 #ifndef RCC_ARENA_H
 #define RCC_ARENA_H
-#include "common.h"
+#include "xccommon.h"
 
 typedef struct arena
 {
