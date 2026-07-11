@@ -17,6 +17,7 @@ int main(int argc, char** argv) {
 
     if (argc != 2) {
         fprintf(stderr, "Usage: xc <path_to_lua_file>");
+        return 1;
     }
     FILE* f = xc_fs_open(argv[1], "r");
     xc_lua_tokenize(globalArena, f);

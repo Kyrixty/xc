@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdio.h>
 
 typedef struct {
     const char* __data;
@@ -21,7 +22,8 @@ XcStringView xcs_trim(XcStringView* xcs);
 XcStringView xcs_collect(XcStringView* xcs, int (*predicate)(int c));
 XcStringView xcs_collect_until(XcStringView* xcs, int (*predicate)(int c));
 XcStringView xcs_skip(XcStringView* xcs, int (*predicate)(int c));
-XcStringView xcs_skip_until_after(XcStringView* xcs, int(*predicate)(int c));
+XcStringView xcs_skip_until(XcStringView* xcs, int(*predicate)(int c));
+bool xcs_str_eq(XcStringView* lhs, XcStringView* rhs);
 
 #define XCS_FMT "%.*s"
 #define XCS_Arg(xcs) (int)(xcs).count, (xcs).data
@@ -76,7 +78,6 @@ XcStringView xcs_collect_until(XcStringView* xcs, int (*predicate)(int c)) {
 XcStringView xcs_skip(XcStringView* xcs, int (*predicate)(int c)) {
     size_t i = 0;
     while (i < xcs->count && predicate(xcs->data[i])) {
-        printf("%d\n", predicate(xcs->data[i]));
         i++;
     }
     XcStringView s = *xcs;
@@ -89,7 +90,7 @@ XcStringView xcs_skip(XcStringView* xcs, int (*predicate)(int c)) {
 
 }
 
-XcStringView xcs_skip_until_after(XcStringView* xcs, int(*predicate)(int c)) {
+XcStringView xcs_skip_until(XcStringView* xcs, int(*predicate)(int c)) {
     size_t i = 0;
     while (i < xcs->count && !predicate(xcs->data[i])) {
         i++;
@@ -97,8 +98,8 @@ XcStringView xcs_skip_until_after(XcStringView* xcs, int(*predicate)(int c)) {
     if (i < xcs->count) {
         return (XcStringView) {
             .__data = xcs->__data,
-            .data = xcs->data + i + 1,
-            .count = xcs->count - i - 1,
+            .data = xcs->data + i,
+            .count = xcs->count - i,
         };
     }
     XcStringView s = *xcs;
@@ -135,6 +136,20 @@ XcStringView xcs(const char* str) {
         .data = str,
         .count = strlen(str),
     };
+}
+
+bool xcs_str_eq(XcStringView* lhs, XcStringView* rhs) {
+    if (!lhs && !rhs) { return true; }
+    if (!lhs || !rhs) { return false; }
+    if (!lhs->__data && !rhs->__data) { return true; }
+    if (!lhs->__data || !rhs->__data) { return false; }
+    if (lhs->count != rhs->count) { return false; }
+    if (lhs->data == rhs->data && lhs->count == rhs->count) { return true; }
+    for (size_t i = 0; i < lhs->count; i++) {
+        if (lhs->data[i] != rhs->data[i])
+            return false;
+    }
+    return true;
 }
 #endif
 

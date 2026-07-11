@@ -1,0 +1,55 @@
+#include "xcstring.h"
+#include "xcassert.h"
+#include <stdio.h>
+
+int skip_l(int c) {
+    return c == 'l';
+}
+
+int skip_until_o(int c) {
+    return c == 'o';
+}
+
+int collect_l(int c) {
+    return c == 'l';
+}
+
+int collect_until_o(int c) {
+    return c == 'o';
+}
+
+void test_str_eq() {
+    XcStringView s1 = xcs("hello");
+    XcStringView s2 = xcs("hello");
+    XcStringView s3 = xcs("bad");
+    assert_true(xcs_str_eq(NULL, NULL));
+    assert_true(xcs_str_eq(&s1, &s2));
+    assert_true(!xcs_str_eq(&s1, &s3));
+    assert_true(!xcs_str_eq(&s2, &s3));
+
+    xcs_chop_right(&s2, 1);
+    assert_true(!xcs_str_eq(&s1, &s2));
+    xcs_chop_right(&s2, s2.count);
+    xcs_chop_right(&s1, s1.count);
+    assert_true(xcs_str_eq(&s1, &s2));
+    xcs_reset(&s1);
+    xcs_reset(&s2);
+    xcs_chop_left(&s1, 2);
+    xcs_chop_left(&s2, 2);
+    assert_true(xcs_str_eq(&s1, &s2));
+    s1 = xcs_skip(&s1, skip_l);
+    s2 = xcs_skip_until(&s2, skip_until_o);
+    assert_true(xcs_str_eq(&s1, &s2));
+    xcs_reset(&s1);
+    xcs_reset(&s2);
+    assert_true(xcs_str_eq(&s1, &s2));
+    xcs_chop_left(&s1, 2);
+    xcs_chop_left(&s2, 2);
+    s1 = xcs_collect(&s1, collect_l);
+    s2 = xcs_collect_until(&s2, collect_until_o);
+    assert_true(xcs_str_eq(&s1, &s2));
+}
+
+int main() {
+    test_str_eq();
+}
