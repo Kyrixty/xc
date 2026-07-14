@@ -1,5 +1,5 @@
-#ifndef XCC_COMMON_H
-#define XCC_COMMON_H
+#ifndef XC_COMMON_H
+#define XC_COMMON_H
 #include <stdint.h>
 #include <stdbool.h>
 

@@ -2,6 +2,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifndef XCLIST_ALLOC
+#include <stdlib.h>
+#define XCLIST_ALLOC malloc
+#define XCLIST_FREE free
+#endif
+
 /*
 DECL_LIST(intList, int);
 
@@ -31,9 +37,9 @@ typedef struct \
 } typename;\
 typename* typename##_init()\
 {\
-    typename* list = malloc(sizeof(typename));\
+    typename* list = XCLIST_ALLOC(sizeof(typename));\
     if (!list) LIST_FATAL_ERROR("List init : Cannot allocate list!");\
-    list->data = malloc(sizeof(type) * LIST_INITIAL_CAPACITY);\
+    list->data = XCLIST_ALLOC(sizeof(type) * LIST_INITIAL_CAPACITY);\
     if (!list->data) LIST_FATAL_ERROR("List init : Cannot allocate list data");\
     list->len = 0;\
     list->cap = LIST_INITIAL_CAPACITY;\
@@ -93,8 +99,8 @@ type typename##_get(typename* list, u64 index)\
 }\
 void typename##_free(typename* list)\
 {\
-    if (list->cap && list->data) free(list->data);\
-    free(list);\
+    if (list->cap && list->data) XCLIST_FREE(list->data);\
+    XCLIST_FREE(list);\
 }\
 void typename##_clear(typename* list)\
 {\
