@@ -83,25 +83,7 @@ inline char xcs_at(const XcStringView* xcs, size_t i) {
     return xcs->data[i];
 }
 
-bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix) {
-    if (xcs_empty(prefix)) {
-        return true;
-    }
-    if (prefix->count > xcs->count) {
-        return false;
-    }
-    for (size_t i = 0; i < prefix->count; i++) {
-        if (prefix->data[i] != xcs->data[i]) {
-            return false;
-        }
-    }
-    return true;
-}
 
-bool xcs_startswith_cstr(const XcStringView* lhs, const char* prefix) {
-    XcStringView s = xcs(prefix);
-    return xcs_startswith(lhs, &s);
-}
 
 int xcs_index(const XcStringView* source, const XcStringView* target) {
     if (xcs_empty(target)) {
@@ -130,6 +112,27 @@ int xcs_index(const XcStringView* source, const XcStringView* target) {
 int xcs_index_cstr(const XcStringView* source, const char* target) {
     XcStringView _target = xcs(target);
     return xcs_index(source, &_target);
+}
+
+bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix) {
+    return xcs_index(xcs, prefix) == 0;
+    // if (xcs_empty(prefix)) {
+    //     return true;
+    // }
+    // if (prefix->count > xcs->count) {
+    //     return false;
+    // }
+    // for (size_t i = 0; i < prefix->count; i++) {
+    //     if (prefix->data[i] != xcs->data[i]) {
+    //         return false;
+    //     }
+    // }
+    // return true;
+}
+
+bool xcs_startswith_cstr(const XcStringView* lhs, const char* prefix) {
+    XcStringView s = xcs(prefix);
+    return xcs_startswith(lhs, &s);
 }
 
 void xcs_chop_right(XcStringView* xcs, size_t n) {
