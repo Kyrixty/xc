@@ -11,12 +11,25 @@
 typedef struct {
     const char* __data;
     const char* data;
+    size_t __count;
     size_t count;
 } XcStringView;
 
+size_t xcs_strlen(const char* s);
 void xcs_chop_left(XcStringView* xcs, size_t n);
 void xcs_chop_right(XcStringView* xcs, size_t n);
 void xcs_reset(XcStringView* xcs);
+/**
+ * Clears `xcs`. Note that it will keep it's position,
+ * but `xcs->count` will be set to 0.
+ */
+void xcs_clear(XcStringView* xcs);
+/**
+ * Advances the internal char* in an
+ * `XcStringView` to the end, clearing it
+ * at the same time via `xcs_clear`.
+ */
+void xcs_consume_all(XcStringView* xcs);
 bool xcs_empty(const XcStringView* xcs);
 bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix);
 bool xcs_startswith_cstr(const XcStringView* xcs, const char* prefix);
@@ -48,7 +61,7 @@ char xcs_at(const XcStringView* xcs, size_t i);
 /**
  * @return  `true`  if two `XcStringView`s are equal.
  */
-bool xcs_str_eq(const XcStringView* lhs, const XcStringView* rhs);
+bool xcs_eq(const XcStringView* lhs, const XcStringView* rhs);
 /**
  * @return  `true`  if the data in `rhs` is equal to the data in `lhs`.
  */
@@ -65,11 +78,22 @@ bool xcs_eq_cstr(const XcStringView* lhs, const char* rhs);
 fprintf(stderr, "%s"FMT, "XCS_PANIC: ", __VA_ARGS__); \
 exit(XCS_PANIC_CODE)
 
+size_t xcs_strlen(const char* s) {
+    if (s == NULL) {
+        return 0;
+    }
+    size_t i = 0;
+    while (*s++ != 0) {
+        i++;
+    }
+    return i;
+}
 XcStringView xcs(const char* str) {
     return (XcStringView) {
         .__data = str,
         .data = str,
-        .count = strlen(str),
+        .__count = xcs_strlen(str),
+        .count = xcs_strlen(str),
     };
 }
 
@@ -82,9 +106,18 @@ void xcs_reset(XcStringView* xcs) {
     xcs->count = strlen(xcs->__data);
 }
 
+void xcs_clear(XcStringView* xcs) {
+    xcs->count = 0;
+}
+
+void xcs_consume_all(XcStringView* xcs) {
+    xcs->data = xcs->__data + xcs->__count;
+    xcs_clear(xcs);
+}
+
 inline char xcs_at(const XcStringView* xcs, size_t i) {
     if (i >= xcs->count) {
-        XCS_PANIC("xcs_at: Index %llu is outside of indexable range. Have: 0-%llu.", i, xcs->count);
+        XCS_PANIC("xcs_at: Index %llu is outside of indexable range. Have: 0-%llu.", i, xcs->count == 0 ? 0 : xcs->count - 1);
     }
     return xcs->data[i];
 }
@@ -252,11 +285,11 @@ XcStringView xcs_split(const XcStringView* xcs, char c) {
     return xcs_collect_until(xcs, __xcs_split);
 }
 
-bool xcs_str_eq(const XcStringView* lhs, const XcStringView* rhs) {
+bool xcs_eq(const XcStringView* lhs, const XcStringView* rhs) {
     if (!lhs && !rhs) { return true; }
     if (!lhs || !rhs) { return false; }
     if (!lhs->__data && !rhs->__data) { return true; }
-    if (!lhs->__data || !rhs->__data) { return false; }
+    if (!lhs->__data || !rhs->__data) { return lhs->count == rhs->count; } // empty XCS and NULL are equal
     if (lhs->count != rhs->count) { return false; }
     if (lhs->data == rhs->data && lhs->count == rhs->count) { return true; }
     for (size_t i = 0; i < lhs->count; i++) {
@@ -268,7 +301,7 @@ bool xcs_str_eq(const XcStringView* lhs, const XcStringView* rhs) {
 
 bool xcs_eq_cstr(const XcStringView* lhs, const char* rhs) {
     XcStringView __rhs = xcs(rhs);
-    return xcs_str_eq(lhs, &__rhs);
+    return xcs_eq(lhs, &__rhs);
 }
 
 #endif

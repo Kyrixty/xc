@@ -22,10 +22,10 @@ void test_str_eq() {
     XcStringView s1 = xcs("hello");
     XcStringView s2 = xcs("hello");
     XcStringView s3 = xcs("bad");
-    assert_true(xcs_str_eq(NULL, NULL));
-    assert_true(xcs_str_eq(&s1, &s2));
-    assert_true(!xcs_str_eq(&s1, &s3));
-    assert_true(!xcs_str_eq(&s2, &s3));
+    assert_true(xcs_eq(NULL, NULL));
+    assert_true(xcs_eq(&s1, &s2));
+    assert_true(!xcs_eq(&s1, &s3));
+    assert_true(!xcs_eq(&s2, &s3));
 
     assert_true(xcs_eq_cstr(&s1, strdup("hello")));
 
@@ -41,15 +41,15 @@ void test_str_eq() {
     assert_true(xcs_index_cstr(&s1, "a") == -1);
 
     xcs_chop_right(&s2, 1);
-    assert_true(!xcs_str_eq(&s1, &s2));
+    assert_true(!xcs_eq(&s1, &s2));
     xcs_chop_right(&s2, s2.count);
     xcs_chop_right(&s1, s1.count);
-    assert_true(xcs_str_eq(&s1, &s2));
+    assert_true(xcs_eq(&s1, &s2));
     xcs_reset(&s1);
     xcs_reset(&s2);
     xcs_chop_left(&s1, 2);
     xcs_chop_left(&s2, 2);
-    assert_true(xcs_str_eq(&s1, &s2));
+    assert_true(xcs_eq(&s1, &s2));
 
     assert_true(xcs_index(&s1, &s2) == 0);
     assert_true(xcs_index_cstr(&s1, "l") == xcs_index_cstr(&s2, "l"));
@@ -65,15 +65,23 @@ void test_str_eq() {
     assert_true(!xcs_has_cstr(&s1, "llox"));
     s1 = xcs_skip(&s1, skip_l);
     s2 = xcs_skip_until(&s2, skip_until_o);
-    assert_true(xcs_str_eq(&s1, &s2));
+    assert_true(xcs_eq(&s1, &s2));
     xcs_reset(&s1);
     xcs_reset(&s2);
-    assert_true(xcs_str_eq(&s1, &s2));
+    assert_true(xcs_eq(&s1, &s2));
     xcs_chop_left(&s1, 2);
     xcs_chop_left(&s2, 2);
     s1 = xcs_collect(&s1, collect_l);
     s2 = xcs_collect_until(&s2, collect_until_o);
-    assert_true(xcs_str_eq(&s1, &s2));
+    assert_true(xcs_eq(&s1, &s2));
+
+    xcs_clear(&s1);
+    xcs_clear(&s2);
+    xcs_consume_all(&s3);
+    assert_true(xcs_eq(&s1, &s2));
+    assert_true(xcs_eq(&s2, &s3));
+    assert_true(xcs_eq(&s1, &s3));
+    assert_true(xcs_eq_cstr(&s1, NULL));
 }
 
 int main() {
