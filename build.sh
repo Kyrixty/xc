@@ -1,5 +1,5 @@
 if [[ ! -d dist ]]; then
-    mkdir build
+    mkdir dist
 fi
 
 time gcc -Wall -Iinclude/ src/*.c -o dist/xc.exe
