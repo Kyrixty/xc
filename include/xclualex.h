@@ -1,6 +1,8 @@
 #ifndef XC_LLEX_H
 #define XC_LLEX_H
 #include "arena.h"
+#include "xcstring.h"
+#include "xcfs.h"
 
 /**
  * @TWOFACE: This token has a different meaning depending on surrounding symbols.
@@ -117,10 +119,23 @@ typedef struct {
 #include <stdio.h>
 
 XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f) {
-    fseek(f, 0, SEEK_END);
-    long flen = ftell(f);
+    long flen = xc_fs_filelen(f);
     char* buf = ALLOC_ARRAY(mem, char, flen);
     fread(buf, 1, flen, f);
+    XcStringView line, s = xcs(buf);
+    
+    while (s.count > 0) {
+        line = xcs_split(&s, '\n');
+        long __llen = line.count;
+        line = xcs_trim(&line);
+        printf("|"XCS_FMT"|\n", XCS_Arg(line));
+        xcs_chop_left(&s, __llen + 1);
+    }
+
+    return (XcLuaTokens) {
+        .n_tokens = 0,
+        .tokens = NULL,
+    };
 }
 
 #endif

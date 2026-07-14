@@ -15,22 +15,24 @@ typedef struct {
 void xcs_chop_left(XcStringView* xcs, size_t n);
 void xcs_chop_right(XcStringView* xcs, size_t n);
 void xcs_reset(XcStringView* xcs);
-bool xcs_empty(XcStringView* xcs);
-XcStringView xcs_trim_left(XcStringView* xcs);
-XcStringView xcs_trim_right(XcStringView* xcs);
-XcStringView xcs_trim(XcStringView* xcs);
-XcStringView xcs_collect(XcStringView* xcs, int (*predicate)(int c));
-XcStringView xcs_collect_until(XcStringView* xcs, int (*predicate)(int c));
-XcStringView xcs_skip(XcStringView* xcs, int (*predicate)(int c));
-XcStringView xcs_skip_until(XcStringView* xcs, int(*predicate)(int c));
-bool xcs_str_eq(XcStringView* lhs, XcStringView* rhs);
+bool xcs_empty(const XcStringView* xcs);
+XcStringView xcs_trim_left(const XcStringView* xcs);
+XcStringView xcs_trim_right(const XcStringView* xcs);
+XcStringView xcs_trim(const XcStringView* xcs);
+XcStringView xcs_collect(const XcStringView* xcs, int (*predicate)(int c));
+XcStringView xcs_collect_until(const XcStringView* xcs, int (*predicate)(int c));
+XcStringView xcs_skip(const XcStringView* xcs, int (*predicate)(int c));
+XcStringView xcs_skip_until(const XcStringView* xcs, int(*predicate)(int c));
+XcStringView xcs_split(const XcStringView* xcs, char c);
+bool xcs_str_eq(const XcStringView* lhs, const XcStringView* rhs);
+bool xcs_xc_eq_cstr(const XcStringView* lhs, const char* rhs);
 
 #define XCS_FMT "%.*s"
 #define XCS_Arg(xcs) (int)(xcs).count, (xcs).data
 
 #define XC_STRING_IMPL
 #ifdef XC_STRING_IMPL
-bool xcs_empty(XcStringView* xcs) { 
+bool xcs_empty(const XcStringView* xcs) { 
     return xcs->count == 0;
 }
 
@@ -51,7 +53,7 @@ void xcs_chop_left(XcStringView* xcs, size_t n) {
     xcs->count -= n;
 }
 
-XcStringView xcs_collect(XcStringView* xcs, int (*predicate)(int c)) {
+XcStringView xcs_collect(const XcStringView* xcs, int (*predicate)(int c)) {
     size_t i = 0;
     while (i < xcs->count && predicate(xcs->data[i])) {
         i++;
@@ -63,7 +65,7 @@ XcStringView xcs_collect(XcStringView* xcs, int (*predicate)(int c)) {
     };
 }
 
-XcStringView xcs_collect_until(XcStringView* xcs, int (*predicate)(int c)) {
+XcStringView xcs_collect_until(const XcStringView* xcs, int (*predicate)(int c)) {
     size_t i = 0;
     while (i < xcs->count && !predicate(xcs->data[i])) {
         i++;
@@ -75,7 +77,7 @@ XcStringView xcs_collect_until(XcStringView* xcs, int (*predicate)(int c)) {
     };
 }
 
-XcStringView xcs_skip(XcStringView* xcs, int (*predicate)(int c)) {
+XcStringView xcs_skip(const XcStringView* xcs, int (*predicate)(int c)) {
     size_t i = 0;
     while (i < xcs->count && predicate(xcs->data[i])) {
         i++;
@@ -90,7 +92,7 @@ XcStringView xcs_skip(XcStringView* xcs, int (*predicate)(int c)) {
 
 }
 
-XcStringView xcs_skip_until(XcStringView* xcs, int(*predicate)(int c)) {
+XcStringView xcs_skip_until(const XcStringView* xcs, int(*predicate)(int c)) {
     size_t i = 0;
     while (i < xcs->count && !predicate(xcs->data[i])) {
         i++;
@@ -107,12 +109,12 @@ XcStringView xcs_skip_until(XcStringView* xcs, int(*predicate)(int c)) {
     return s;
 }
 
-XcStringView xcs_trim_left(XcStringView* xcs) {
+XcStringView xcs_trim_left(const XcStringView* xcs) {
     XcStringView s = xcs_skip(xcs, isspace);
     return s;
 }
 
-XcStringView xcs_trim_right(XcStringView* xcs) {
+XcStringView xcs_trim_right(const XcStringView* xcs) {
     int i = xcs->count;
     size_t count = 0;
     XcStringView copy = *xcs;
@@ -125,7 +127,7 @@ XcStringView xcs_trim_right(XcStringView* xcs) {
     return copy;
 }
 
-XcStringView xcs_trim(XcStringView* xcs) {
+XcStringView xcs_trim(const XcStringView* xcs) {
     XcStringView copy = xcs_trim_right(xcs);
     return xcs_trim_left(&copy);
 }
@@ -138,7 +140,18 @@ XcStringView xcs(const char* str) {
     };
 }
 
-bool xcs_str_eq(XcStringView* lhs, XcStringView* rhs) {
+/* Is this bad? It definitely isn't thread-safe. */
+static int __xcs_target = 0;
+static inline int __xcs_split(int c) {
+    return c == __xcs_target;
+}
+
+XcStringView xcs_split(const XcStringView* xcs, char c) {
+    __xcs_target = c;
+    return xcs_collect_until(xcs, __xcs_split);
+}
+
+bool xcs_str_eq(const XcStringView* lhs, const XcStringView* rhs) {
     if (!lhs && !rhs) { return true; }
     if (!lhs || !rhs) { return false; }
     if (!lhs->__data && !rhs->__data) { return true; }
@@ -151,6 +164,12 @@ bool xcs_str_eq(XcStringView* lhs, XcStringView* rhs) {
     }
     return true;
 }
+
+bool xcs_xc_eq_cstr(const XcStringView* lhs, const char* rhs) {
+    XcStringView __rhs = xcs(rhs);
+    return xcs_str_eq(lhs, &__rhs);
+}
+
 #endif
 
 #endif

@@ -27,6 +27,8 @@ void test_str_eq() {
     assert_true(!xcs_str_eq(&s1, &s3));
     assert_true(!xcs_str_eq(&s2, &s3));
 
+    assert_true(xcs_xc_eq_cstr(&s1, strdup("hello")));
+
     xcs_chop_right(&s2, 1);
     assert_true(!xcs_str_eq(&s1, &s2));
     xcs_chop_right(&s2, s2.count);

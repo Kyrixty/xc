@@ -5,3 +5,4 @@
 # Dirs
 build/
 dist/
+.vscode/
