@@ -45,16 +45,24 @@ bool xcs_has_cstr(const XcStringView* xcs, const char* target);
 /**
  * @return `int`   The index of the first occurrence of `target` found in `xcs`, or `XCS_NOT_FOUND` if no match was found.
  */
-int xcs_index(const XcStringView* xcs, const XcStringView* target);
-int xcs_index_cstr(const XcStringView* xcs, const char* target);
-XcStringView xcs_trim_left(const XcStringView* xcs);
-XcStringView xcs_trim_right(const XcStringView* xcs);
-XcStringView xcs_trim(const XcStringView* xcs);
-XcStringView xcs_collect(const XcStringView* xcs, int (*predicate)(int c));
-XcStringView xcs_collect_until(const XcStringView* xcs, int (*predicate)(int c));
-XcStringView xcs_skip(const XcStringView* xcs, int (*predicate)(int c));
-XcStringView xcs_skip_until(const XcStringView* xcs, int(*predicate)(int c));
-XcStringView xcs_split(const XcStringView* xcs, char c);
+int xcs_index(const XcStringView* s, const XcStringView* target);
+int xcs_index_cstr(const XcStringView* s, const char* target);
+XcStringView xcs_trim_left(const XcStringView* s);
+XcStringView xcs_trim_right(const XcStringView* s);
+XcStringView xcs_trim(const XcStringView* s);
+XcStringView xcs_collect(const XcStringView* s, int (*predicate)(int c));
+XcStringView xcs_collect_until(const XcStringView* s, int (*predicate)(int c));
+XcStringView xcs_skip(const XcStringView* s, int (*predicate)(int c));
+XcStringView xcs_skip_until(const XcStringView* s, int(*predicate)(int c));
+XcStringView xcs_split(const XcStringView* s, char c);
+/**
+ * Returns a string view representing the substring of `s`
+ * from indexes `start` to `end` (including the char at `start`, but not at end.
+ * Similar to python's `x[i:j]` slice.)
+ * 
+ * @return  XcStringView    the substring from `start` to `end`.
+ */
+XcStringView xcs_substring(const XcStringView* s, size_t start, size_t end);
 /**
  * Gets the character at index `i`.
  * Panics if `i` is outside of the indexable range of `xcs`,
@@ -298,7 +306,23 @@ XcStringView xcs_trim(const XcStringView* xcs) {
     return xcs_trim_left(&copy);
 }
 
-
+XcStringView xcs_substring(const XcStringView* s, size_t start, size_t end) {
+    if (!s->count) {
+        XCS_ERROR("xcs_substring: called on empty string (start=%llu, end=%llu).", start, end);
+    }
+    if (end < start) {
+        XCS_ERROR("xcs_substring: end < start (start=%llu, end=%llu)", start, end);
+    }
+    if (end > s->count) {
+        XCS_ERROR("xcs_substring: end index out of bounds (start=%llu, end=%llu, but can only slice from [0:%llu])", start, end, s->count);
+    }
+    return (XcStringView) {
+        .count = MAX((int)(end - start), 0),
+        .data = s->data + start,
+        .__data = s->__data,
+        .__count = s->__count
+    };
+}
 
 /* Is this bad? It definitely isn't thread-safe. */
 static int __xcs_target = 0;

@@ -30,6 +30,9 @@ void test_str_eq() {
 
     assert_true(xcs_eq_cstr(&s1, strdup("hello")));
 
+    XcStringView sub = xcs_substring(&s1, 1, 4);
+    assert_true(xcs_eq_cstr(&sub, "ell"));
+
     assert_true(xcs_endswith_cstr(&s1, NULL));
     assert_true(xcs_endswith(&s1, &s2));
     assert_true(xcs_endswith_cstr(&s1, "llo"));
@@ -71,6 +74,8 @@ void test_str_eq() {
     assert_true(!xcs_has(&s1, &s3));
     assert_true(!xcs_has_cstr(&s1, "This isn't in s1!"));
     assert_true(!xcs_has_cstr(&s1, "llox"));
+    sub = xcs_substring(&s1, 0, 3);
+    assert_true(xcs_eq_cstr(&sub, "llo"));
     assert_true(xcs_at(&s1, xcs_index_char(&s1, xcs_at(&s1, 1))) == xcs_at(&s1, 1));
     s1 = xcs_skip(&s1, skip_l);
     s2 = xcs_skip_until(&s2, skip_until_o);
