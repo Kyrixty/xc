@@ -193,60 +193,60 @@ void xcs_chop_left(XcStringView* xcs, size_t n) {
     xcs->count -= n;
 }
 
-XcStringView xcs_collect(const XcStringView* xcs, int (*predicate)(int c)) {
+XcStringView xcs_collect(const XcStringView* s, int (*predicate)(int c)) {
     size_t i = 0;
-    while (i < xcs->count && predicate(xcs->data[i])) {
+    while (i < s->count && predicate(xcs_at(s, i))) {
         i++;
     }
     return (XcStringView) {
-        .__data = xcs->__data,
-        .data = xcs->data,
+        .__data = s->__data,
+        .data = s->data,
         .count = i,
     };
 }
 
-XcStringView xcs_collect_until(const XcStringView* xcs, int (*predicate)(int c)) {
+XcStringView xcs_collect_until(const XcStringView* s, int (*predicate)(int c)) {
     size_t i = 0;
-    while (i < xcs->count && !predicate(xcs->data[i])) {
+    while (i < s->count && !predicate(xcs_at(s, i))) {
         i++;
     }
     return (XcStringView) {
-        .__data = xcs->__data,
-        .data = xcs->data,
+        .__data = s->__data,
+        .data = s->data,
         .count = i,
     };
 }
 
-XcStringView xcs_skip(const XcStringView* xcs, int (*predicate)(int c)) {
+XcStringView xcs_skip(const XcStringView* s, int (*predicate)(int c)) {
     size_t i = 0;
-    while (i < xcs->count && predicate(xcs->data[i])) {
+    while (i < s->count && predicate(xcs_at(s, i))) {
         i++;
     }
-    XcStringView s = *xcs;
-    if (i < xcs->count) {
-        xcs_chop_left(&s, i);
+    XcStringView cpy = *s;
+    if (i < s->count) {
+        xcs_chop_left(&cpy, i);
     } else {
-        xcs_chop_left(&s, s.count);
+        xcs_chop_left(&cpy, cpy.count);
     }
-    return s;
+    return cpy;
 
 }
 
-XcStringView xcs_skip_until(const XcStringView* xcs, int(*predicate)(int c)) {
+XcStringView xcs_skip_until(const XcStringView* s, int(*predicate)(int c)) {
     size_t i = 0;
-    while (i < xcs->count && !predicate(xcs->data[i])) {
+    while (i < s->count && !predicate(xcs_at(s, i))) {
         i++;
     }
-    if (i < xcs->count) {
+    if (i < s->count) {
         return (XcStringView) {
-            .__data = xcs->__data,
-            .data = xcs->data + i,
-            .count = xcs->count - i,
+            .__data = s->__data,
+            .data = s->data + i,
+            .count = s->count - i,
         };
     }
-    XcStringView s = *xcs;
-    xcs_chop_left(&s, s.count);
-    return s;
+    XcStringView cpy = *s;
+    xcs_chop_left(&cpy, cpy.count);
+    return cpy;
 }
 
 XcStringView xcs_trim_left(const XcStringView* xcs) {
@@ -254,12 +254,12 @@ XcStringView xcs_trim_left(const XcStringView* xcs) {
     return s;
 }
 
-XcStringView xcs_trim_right(const XcStringView* xcs) {
-    int i = xcs->count;
+XcStringView xcs_trim_right(const XcStringView* s) {
+    int i = s->count;
     size_t count = 0;
-    XcStringView copy = *xcs;
-    if (xcs->count == 0) return *xcs;
-    while (i >= 0 && isspace(xcs->data[i - 1])) {
+    XcStringView copy = *s;
+    if (s->count == 0) return *s;
+    while (i >= 0 && isspace(xcs_at(s, i - 1))) {
         i--;
         count++;
     }

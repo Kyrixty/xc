@@ -26,6 +26,7 @@ void test_str_eq() {
     assert_true(xcs_eq(&s1, &s2));
     assert_true(!xcs_eq(&s1, &s3));
     assert_true(!xcs_eq(&s2, &s3));
+    assert_true(xcs_at(&s1, 0) == 'h');
 
     assert_true(xcs_eq_cstr(&s1, strdup("hello")));
 
@@ -57,6 +58,7 @@ void test_str_eq() {
     assert_true(xcs_startswith(&s1, &s2));
     assert_true(xcs_startswith_cstr(&s1, "llo"));
     assert_true(xcs_startswith_cstr(&s1, "ll"));
+    assert_true(xcs_at(&s1, s1.count - 1) == 'o');
     assert_true(xcs_has(&s1, &s2));
     assert_true(xcs_has_cstr(&s1, "ll"));
     assert_true(xcs_has_cstr(&s2, "o"));
