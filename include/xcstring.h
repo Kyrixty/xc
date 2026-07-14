@@ -21,7 +21,13 @@ bool xcs_empty(const XcStringView* xcs);
 bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix);
 bool xcs_startswith_cstr(const XcStringView* xcs, const char* prefix);
 /**
- * @return `int`   The index of the first occurrence of `target` found in `xcs`, or `-1` if no match was found.
+ * @return  `true`  if `xcs` contains `target`. `false` otherwise.
+ */
+bool xcs_has(const XcStringView* xcs, const XcStringView* target);
+bool xcs_has_cstr(const XcStringView* xcs, const char* target);
+#define XCS_NOT_FOUND -1
+/**
+ * @return `int`   The index of the first occurrence of `target` found in `xcs`, or `XCS_NOT_FOUND` if no match was found.
  */
 int xcs_index(const XcStringView* xcs, const XcStringView* target);
 int xcs_index_cstr(const XcStringView* xcs, const char* target);
@@ -83,14 +89,12 @@ inline char xcs_at(const XcStringView* xcs, size_t i) {
     return xcs->data[i];
 }
 
-
-
 int xcs_index(const XcStringView* source, const XcStringView* target) {
     if (xcs_empty(target)) {
         return 0;
     }
-    if (xcs_empty(source)) {
-        return -1;
+    if (xcs_empty(source) || target->count > source->count) {
+        return XCS_NOT_FOUND;
     }
     size_t left = 0, n = 0;
     for (; left < source->count; left += n) {
@@ -106,7 +110,7 @@ int xcs_index(const XcStringView* source, const XcStringView* target) {
         }
         n = MAX(1, n); // if the first pass failed, then n = 0 and we will infinitely loop
     }
-    return -1;
+    return XCS_NOT_FOUND;
 }
 
 int xcs_index_cstr(const XcStringView* source, const char* target) {
@@ -133,6 +137,15 @@ bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix) {
 bool xcs_startswith_cstr(const XcStringView* lhs, const char* prefix) {
     XcStringView s = xcs(prefix);
     return xcs_startswith(lhs, &s);
+}
+
+bool xcs_has(const XcStringView* xcs, const XcStringView* target) {
+    return xcs_index(xcs, target) != XCS_NOT_FOUND;
+}
+
+bool xcs_has_cstr(const XcStringView* source, const char* target) {
+    XcStringView _target = xcs(target);
+    return xcs_has(source, &_target);
 }
 
 void xcs_chop_right(XcStringView* xcs, size_t n) {
