@@ -32,6 +32,9 @@ void test_str_eq() {
     assert_true(xcs_startswith(&s1, &s2));
     assert_true(xcs_startswith_cstr(&s1, "he"));
     assert_true(xcs_startswith_cstr(&s2, "he"));
+    assert_true(!xcs_startswith(&s1, &s3));
+    assert_true(!xcs_startswith(&s2, &s3));
+    assert_true(!xcs_startswith_cstr(&s1, "s1 doesn't start with this!"));
 
     xcs_chop_right(&s2, 1);
     assert_true(!xcs_str_eq(&s1, &s2));

@@ -124,4 +124,6 @@ void typename##_reserve(typename* list, u64 rsvSize)\
 {\
     if (typename##_cap(list) >= rsvSize) return;\
     typename##_resize(list, rsvSize);\
-}\
+}
+
+

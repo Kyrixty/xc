@@ -4,6 +4,7 @@
 #include "xcstring.h"
 #include "xcfs.h"
 #include "xccommon.h"
+#include "xclist.h"
 
 /**
  * @TWOFACE: This token has a different meaning depending on surrounding symbols.
@@ -21,10 +22,9 @@ typedef enum {
     TK_INT_10,
     TK_INT_16,
     TK_FLOAT,
-    TK_STR_DBL,
-    TK_STR_SGL,
+    TK_STR,
     TK_STR_MUL,
-    TK_SYMBOL,      // Used for variable names (i.e. `local myVar = "hello"` => `myVar` is TK_SYMBOL)
+    TK_IDENT,      // Used for variable names (i.e. `local myVar = "hello"` => `myVar` is TK_SYMBOL)
     
     // Arithmetic
     TK_ASSIGN,      // =
@@ -119,11 +119,42 @@ typedef struct {
 #ifdef XC_LUALEX_IMPL
 #include <stdio.h>
 
+DECL_LIST(Xcltl, XcLuaToken); // XcLuaTokenList
+DECL_LIST(Xcsl, XcStringView); // XcStringView list
+
+XcLuaToken xcll_lex(const XcStringView* s) {
+    /**
+     * There are several modes we can be lexing in (exclusive):
+     * 
+     * 0 - Comment Mode
+     *      -> --, --[[ (multiline)
+     *      -> Do not output any tokens, skip until the end of the comment
+     * 1 - Number Mode
+     *      -> Identified by beginning with a digit.
+     *      -> Value is all characters found until whitespace.
+     *      -> Int (16), Float (16.0), or Hex (0x10)
+     * 2 - Immediate Mode
+     *      -> (comma), LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, DOT (., myObject.myFunc() or myObject.myMember)
+     *      -> If we see these, immediately output the corresponding token. May need to look ahead to not skip information
+     *      -> For example, `<` => TK_LT, but `<=` => `TK_LTE`. However, `.` at this stage requires no lookahead
+     * 3 - String Mode
+     *      -> Identified by a beginning '"' or "'" (either are valid and behave identically.)
+     *      -> Output the string contained within the quotes
+     * 4 - Symbol Mode
+     *      -> If the current string exactly matches a defined keyword, output its corresponding token.
+     *      -> Must look ahead to ensure we are not skipping information.
+     *      -> For example, `local` => `TK_LOCAL`, but `localVar` => TK_IDENT (not this mode)
+     * 5 - Identifier Mode
+     *      -> If no other mode is satisfied, this must be an identifier. Output all tokens until whitespace.
+     */
+}
+
 XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f) {
     long flen = xc_fs_filelen(f);
     char* buf = ALLOC_ARRAY(mem, char, flen);
     fread(buf, 1, flen, f);
     XcStringView line, s = xcs(buf);
+    Xcltl* list = Xcltl_init();
     
     while (s.count > 0) {
         line = xcs_split(&s, '\n');
@@ -131,6 +162,7 @@ XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f) {
         line = xcs_trim(&line);
         printf("|"XCS_FMT"|\n", XCS_Arg(line));
         xcs_chop_left(&s, __llen);
+
     }
 
     return (XcLuaTokens) {
