@@ -50,10 +50,66 @@ int xcs_index_cstr(const XcStringView* s, const char* target);
 XcStringView xcs_trim_left(const XcStringView* s);
 XcStringView xcs_trim_right(const XcStringView* s);
 XcStringView xcs_trim(const XcStringView* s);
+/**
+ * Collects part of a string view while `predicate` returns true.
+ * Does not include the character which yielded `predicate` to
+ * return false.
+ * 
+ * @param   `s` the string view to operate on
+ * @param   `predicate` a function which will be called on each character.
+ * If `predicate` returns `false`, this will terminate the returned string
+ * immediately before the current character being processed.
+ * @return  an `XcStringView` representing the part of the string
+ * where `predicate` did not yet return false.
+ * 
+ * ```c
+ * int collect_non_l(int c) {
+ *      return c != 'l';
+ * }
+ * XcStringView s = xcs("hello");
+ * XcStringView he = xcs_collect(&s, collect_non_l);
+ * printf(XCS_FMT"\n", XCS_Arg(he)); // "he"
+ * ```
+ */
 XcStringView xcs_collect(const XcStringView* s, int (*predicate)(int c));
+/**
+ * Collects part of a string view until `predicate` returns true.
+ * Does not include the character which yielded `predicate` to
+ * return true.
+ * 
+ * @param   `s` the string view to operate on
+ * @param   `predicate` a function which will be called on each character.
+ * If `predicate` returns `true`, this will terminate the returned string
+ * immediately before the current character being processed.
+ * @return  an `XcStringView` representing the part of the string
+ * where `predicate` did not yet return true.
+ * 
+ * ```c
+ * int collect_until_l(int c) {
+ *      return c == 'l';
+ * }
+ * XcStringView s = xcs("hello");
+ * XcStringView he = xcs_collect_until(&s, collect_until_l);
+ * printf(XCS_FMT"\n", XCS_Arg(he)); // "he"
+ * ```
+ */
 XcStringView xcs_collect_until(const XcStringView* s, int (*predicate)(int c));
 XcStringView xcs_skip(const XcStringView* s, int (*predicate)(int c));
 XcStringView xcs_skip_until(const XcStringView* s, int(*predicate)(int c));
+/**
+ * Returns the first substring of `s` which does not contain `c`.
+ * Similar to `xcs_collect_until`, but operates on a direct char
+ * instead of a given function predicate.
+ * 
+ * @param   `s` the string to be split
+ * @param   `c` the character to split `s` by.
+ * @return  The leading string before `c` is found.
+ * 
+ * ```c
+ * XcStringView s = xcs("hello");
+ * XcStringView he = xcs_split(&s, 'l'); // "he"
+ * ```
+ */
 XcStringView xcs_split(const XcStringView* s, char c);
 /**
  * Returns a string view representing the substring of `s`
