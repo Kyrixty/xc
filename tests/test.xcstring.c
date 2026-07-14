@@ -36,6 +36,10 @@ void test_str_eq() {
     assert_true(!xcs_startswith(&s2, &s3));
     assert_true(!xcs_startswith_cstr(&s1, "s1 doesn't start with this!"));
 
+    assert_true(xcs_index(&s1, &s2) == 0);
+    assert_true(xcs_index_cstr(&s1, "e") == 1);
+    assert_true(xcs_index_cstr(&s1, "a") == -1);
+
     xcs_chop_right(&s2, 1);
     assert_true(!xcs_str_eq(&s1, &s2));
     xcs_chop_right(&s2, s2.count);
@@ -46,6 +50,13 @@ void test_str_eq() {
     xcs_chop_left(&s1, 2);
     xcs_chop_left(&s2, 2);
     assert_true(xcs_str_eq(&s1, &s2));
+
+    assert_true(xcs_index(&s1, &s2) == 0);
+    assert_true(xcs_index_cstr(&s1, "l") == xcs_index_cstr(&s2, "l"));
+    assert_true(xcs_index_cstr(&s1, "l") == 0);
+    assert_true(xcs_startswith(&s1, &s2));
+    assert_true(xcs_startswith_cstr(&s1, "llo"));
+    assert_true(xcs_startswith_cstr(&s1, "ll"));
     s1 = xcs_skip(&s1, skip_l);
     s2 = xcs_skip_until(&s2, skip_until_o);
     assert_true(xcs_str_eq(&s1, &s2));

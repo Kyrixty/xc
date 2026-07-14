@@ -20,6 +20,11 @@ void xcs_reset(XcStringView* xcs);
 bool xcs_empty(const XcStringView* xcs);
 bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix);
 bool xcs_startswith_cstr(const XcStringView* xcs, const char* prefix);
+/**
+ * @return `int`   The index of the first occurrence of `target` found in `xcs`, or `-1` if no match was found.
+ */
+int xcs_index(const XcStringView* xcs, const XcStringView* target);
+int xcs_index_cstr(const XcStringView* xcs, const char* target);
 XcStringView xcs_trim_left(const XcStringView* xcs);
 XcStringView xcs_trim_right(const XcStringView* xcs);
 XcStringView xcs_trim(const XcStringView* xcs);
@@ -43,10 +48,6 @@ bool xcs_str_eq(const XcStringView* lhs, const XcStringView* rhs);
  */
 bool xcs_eq_cstr(const XcStringView* lhs, const char* rhs);
 
-
-
-
-
 #define XCS_FMT "%.*s"
 #define XCS_Arg(xcs) (int)(xcs).count, (xcs).data
 
@@ -67,7 +68,7 @@ XcStringView xcs(const char* str) {
 }
 
 bool xcs_empty(const XcStringView* xcs) { 
-    return xcs->count == 0;
+    return xcs->count == 0 || xcs->__data == NULL;
 }
 
 void xcs_reset(XcStringView* xcs) {
@@ -75,7 +76,7 @@ void xcs_reset(XcStringView* xcs) {
     xcs->count = strlen(xcs->__data);
 }
 
-char xcs_at(const XcStringView* xcs, size_t i) {
+inline char xcs_at(const XcStringView* xcs, size_t i) {
     if (i >= xcs->count) {
         XCS_PANIC("xcs_at: Index %llu is outside of indexable range. Have: 0-%llu.", i, xcs->count);
     }
@@ -100,6 +101,35 @@ bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix) {
 bool xcs_startswith_cstr(const XcStringView* lhs, const char* prefix) {
     XcStringView s = xcs(prefix);
     return xcs_startswith(lhs, &s);
+}
+
+int xcs_index(const XcStringView* source, const XcStringView* target) {
+    if (xcs_empty(target)) {
+        return 0;
+    }
+    if (xcs_empty(source)) {
+        return -1;
+    }
+    size_t left = 0, n = 0;
+    for (; left < source->count; left += n) {
+        bool matched = true;
+        for (n = 0; n < target->count; n++) {
+            if (xcs_at(source, left + n) != xcs_at(target, n)) {
+                matched = false;
+                break;
+            }
+        }
+        if (matched) {
+            return left;
+        }
+        n = MAX(1, n); // if the first pass failed, then n = 0 and we will infinitely loop
+    }
+    return -1;
+}
+
+int xcs_index_cstr(const XcStringView* source, const char* target) {
+    XcStringView _target = xcs(target);
+    return xcs_index(source, &_target);
 }
 
 void xcs_chop_right(XcStringView* xcs, size_t n) {
