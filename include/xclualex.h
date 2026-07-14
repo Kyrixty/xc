@@ -100,7 +100,9 @@ typedef enum {
 
 typedef struct {
     XcLuaLexType type;
-    char* data;
+    XcStringView data;
+    size_t line;
+    size_t col;
 } XcLuaToken;
 
 typedef struct {
@@ -122,7 +124,52 @@ typedef struct {
 DECL_LIST(Xcltl, XcLuaToken); // XcLuaTokenList
 DECL_LIST(Xcsl, XcStringView); // XcStringView list
 
-XcLuaToken xcll_lex(const XcStringView* s) {
+typedef enum {
+    XCLL_MODE_NONE,
+    XCLL_MODE_COMMENT,
+    XCLL_MODE_COMMENT_MULTI,
+    XCLL_MODE_NUM,
+    XCLL_MODE_IMM,
+    XCLL_MODE_STR,
+    XCLL_MODE_STR_MULTI,
+    XCLL_MODE_SYMBOL,
+    XCLL_MODE_IDENT,
+} XcLuaLexMode;
+
+typedef enum {
+    XCLL_STATUS_WAITING,
+    XCLL_STATUS_INPROGRESS,
+} XcLuaLexStatus;
+
+typedef struct {
+    XcLuaLexMode mode;
+    XcLuaLexStatus status;
+    bool didWrite;
+} XcLuaLexContext;
+
+static XcLuaLexContext xcllctx;
+
+int __xcll_lex_parse_entire_oneline_str(int c) {
+    static int prev = -1;
+    if (prev == -1) {
+        prev = c;
+    }
+    bool ret = prev == '\\' || (c != '"' && c != '\'');
+    prev = c;
+    return ret;
+}
+
+/**
+ * Lexes an `XcStringView`, trimming off all characters consumed in the process.
+ * Lexes via maximal-munch.
+ * 
+ * @param   s   The string view to be lexed. Will be modified after calling to
+ * remove any characters consumed.
+ * @param   ctx The current lexer context
+ * @param[out]  token The destination token to be modified should a token be outputted.
+ * Callers can know this value was modified if `ctx->didWrite == true`.
+ */
+void xcll_lex(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
     /**
      * There are several modes we can be lexing in (exclusive):
      * 
@@ -134,7 +181,7 @@ XcLuaToken xcll_lex(const XcStringView* s) {
      *      -> Value is all characters found until whitespace.
      *      -> Int (16), Float (16.0), or Hex (0x10)
      * 2 - Immediate Mode
-     *      -> (comma), LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, DOT (., myObject.myFunc() or myObject.myMember)
+     *      -> (comma), LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, DOT (., myObject.myFunc() or myObject.myMember), etc.
      *      -> If we see these, immediately output the corresponding token. May need to look ahead to not skip information
      *      -> For example, `<` => TK_LT, but `<=` => `TK_LTE`. However, `.` at this stage requires no lookahead
      * 3 - String Mode
@@ -146,7 +193,90 @@ XcLuaToken xcll_lex(const XcStringView* s) {
      *      -> For example, `local` => `TK_LOCAL`, but `localVar` => TK_IDENT (not this mode)
      * 5 - Identifier Mode
      *      -> If no other mode is satisfied, this must be an identifier. Output all tokens until whitespace.
+     *      -> Note that this identifier outputted may not *actually* be a valid identifier, but the parser/analyzer will handle that.
+     * 
+     * xcll_lex will first determine which mode to lex in and on the NEXT CALL use this mode to lex correctly.
      */
+    XcLuaToken lexeme = {0};
+    if (ctx->mode == XCLL_MODE_NONE) {
+        // We have just started lexing a new token.
+        // Need to determine the mode, set it, then pass control back to the caller.
+        char first = xcs_at(s, 0);
+        if (xcs_startswith_cstr(s, "--")) {
+            ctx->mode = xcs_startswith_cstr(s, "--[[") ? XCLL_MODE_COMMENT_MULTI : XCLL_MODE_COMMENT;
+        }
+        else if (xcs_startswith_cstr(s, "[[")) {
+            ctx->mode = XCLL_MODE_STR_MULTI;
+        }
+        else if (first == '"' || first == '\'') {
+            ctx->mode = XCLL_MODE_STR;
+        }
+        goto J_LLEX_INPROGRESS;
+    }
+    if (ctx->mode == XCLL_MODE_COMMENT_MULTI) {
+        // We are currently processing a multi-line comment block.
+        // This block ends directly after we find ]]
+        // Skip token processing until this occurs.
+        size_t idx = xcs_index_cstr(s, "]]");
+        if (idx == XCS_NOT_FOUND) {
+            xcs_consume_all(s);
+            goto J_LLEX_INPROGRESS;
+        }
+        ctx->didWrite = false;
+        xcs_chop_left(s, idx + xcs_strlen("]]") + 1);
+        goto J_LLEX_WAITING;
+    }
+    if (ctx->mode == XCLL_MODE_COMMENT) {
+        // This is a single-line comment. Clear `s` and output nothing.
+        xcs_consume_all(s);
+        ctx->didWrite = false;
+        ctx->mode = XCLL_MODE_NONE;
+        goto J_LLEX_WAITING;
+    }
+    if (ctx->mode == XCLL_MODE_STR) {
+        // This is a single-line string. Parse until the end of the string and output a TK_STR
+        char first = xcs_at(s, 0);
+        if (s->count <= 1) {
+            XCS_LEXER_ERROR("Expected '%c', got '\\n'\n", first);
+        }
+        char last = xcs_at(s, s->count - 1);
+        if ((first != '"' && first != '\'') || first != last) {
+            XCS_LEXER_ERROR("Expected '%c', got '%c'\n", first, last);
+        }
+        xcs_chop_left(s, 1);
+        lexeme.type = TK_STR;
+        lexeme.data = xcs_collect(s, __xcll_lex_parse_entire_oneline_str);
+        xcs_consume_all(s);
+        ctx->didWrite = true;
+        ctx->mode = XCLL_MODE_NONE;
+        ctx->status = XCLL_STATUS_WAITING;
+        goto J_LLEX_WAITING;
+
+        // TODO: need line + col numbers
+    }
+
+    if (ctx->mode == XCLL_MODE_STR_MULTI) {
+        // TODO: multi-line string parsing
+        if (xcs_endswith_cstr(s, "]]")) {
+            ctx->mode = XCLL_MODE_NONE;
+        }
+        ctx->didWrite = false;
+        xcs_consume_all(s);
+        goto J_LLEX_WAITING;
+    }
+
+J_LLEX_INPROGRESS:
+    ctx->status = XCLL_STATUS_INPROGRESS;
+    ctx->didWrite = false;
+    return;
+
+J_LLEX_WAITING:
+    ctx->status = XCLL_STATUS_WAITING;
+
+J_LLEX_DIDWRITE:
+    if (ctx->didWrite) {
+        *token = lexeme;
+    }
 }
 
 XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f) {
@@ -155,14 +285,23 @@ XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f) {
     fread(buf, 1, flen, f);
     XcStringView line, s = xcs(buf);
     Xcltl* list = Xcltl_init();
+    size_t lnno = 0, colno = 0;
+    XcLuaToken token = {0};
     
     while (s.count > 0) {
         line = xcs_split(&s, '\n');
         long __llen = line.count + 1; // for \n
         line = xcs_trim(&line);
-        printf("|"XCS_FMT"|\n", XCS_Arg(line));
+        while (line.count > 0) {
+            xcll_lex(&line, &token, &xcllctx);
+            if (xcllctx.didWrite) {
+                Xcltl_append(list, token);
+                printf(XCS_FMT"\n", XCS_Arg(token.data));
+            }
+        }
         xcs_chop_left(&s, __llen);
-
+        colno = 0;
+        lnno++;
     }
 
     return (XcLuaTokens) {

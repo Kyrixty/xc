@@ -11,7 +11,7 @@ while IFS= read -r -d '' file; do
     
     echo -e "===== TEST" "$filename"
 
-    if gcc -Iinclude/ -O0 "$file" -o "dist/test/$filename_no_ext.exe" && "dist/test/$filename_no_ext.exe"; then
+    if gcc -Wall -Iinclude/ -O0 "$file" -o "dist/test/$filename_no_ext.exe" && "dist/test/$filename_no_ext.exe"; then
         (( passed++ ))
         status="\033[32m Pass\033[0m"
     else

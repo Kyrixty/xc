@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "xccommon.h"
+#include "xcerror.h"
 
 typedef struct {
     const char* __data;
@@ -75,11 +76,6 @@ bool xcs_eq_cstr(const XcStringView* lhs, const char* rhs);
 #define XC_STRING_IMPL
 #ifdef XC_STRING_IMPL
 
-#define XCS_PANIC_CODE 255
-#define XCS_PANIC(FMT, ...) \
-fprintf(stderr, "%s"FMT, "XCS_PANIC: ", __VA_ARGS__); \
-exit(XCS_PANIC_CODE)
-
 size_t xcs_strlen(const char* s) {
     if (s == NULL) {
         return 0;
@@ -119,7 +115,7 @@ void xcs_consume_all(XcStringView* xcs) {
 
 inline char xcs_at(const XcStringView* xcs, size_t i) {
     if (i >= xcs->count) {
-        XCS_PANIC("xcs_at: Index %llu is outside of indexable range. Have: 0-%llu.", i, xcs->count == 0 ? 0 : xcs->count - 1);
+        XCS_ERROR("xcs_at: Index %llu is outside of indexable range. Have: 0-%llu.", i, xcs->count == 0 ? 0 : xcs->count - 1);
     }
     return xcs->data[i];
 }
