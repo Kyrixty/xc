@@ -149,6 +149,11 @@ int xcs_index_cstr(const XcStringView* source, const char* target) {
     return xcs_index(source, &_target);
 }
 
+int xcs_index_char(const XcStringView* source, char target) {
+    char buf[2] = {target, 0};
+    return xcs_index_cstr(source, buf);
+}
+
 bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix) {
     return xcs_index(xcs, prefix) == 0;
     // if (xcs_empty(prefix)) {

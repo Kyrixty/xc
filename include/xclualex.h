@@ -238,19 +238,28 @@ void xcll_lex(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
     }
     if (ctx->mode == XCLL_MODE_STR) {
         // This is a single-line string. Parse until the end of the string and output a TK_STR
-        char first = xcs_at(s, 0);
-        if (s->count <= 1) {
-            XCS_LEXER_ERROR("Expected '%c', got '\\n'\n", first);
+        char last = 0, first = xcs_at(s, 0);
+        char c, prev = -1;
+        int str_end_idx = -1;
+        xcs_chop_left(s, 1);
+
+        for (size_t i = 0; i < s->count; i++) {
+            char c = xcs_at(s, i);
+            if (prev == -1) {
+                prev = c;
+            }
+            if (c == first && prev != '\\') {
+                str_end_idx = i;
+            }
         }
 
-        // BUG: the last character is not necessarily a ' or "! Consider the string: `"this is a string" -- followed by a comment!` (trailing " is found way earlier)
-        char last = xcs_at(s, s->count - 1);
-        if ((first != '"' && first != '\'') || first != last) {
-            XCS_LEXER_ERROR("Expected '%c', got '%c'\n", first, last);
+        if (s->count <= 1 || str_end_idx == -1) {
+            XCS_LEXER_ERROR("Cannot find end of string. Expected '%c', got '\\n'\n", first);
         }
-        xcs_chop_left(s, 1);
+
         lexeme.type = TK_STR;
-        lexeme.data = xcs_collect(s, __xcll_lex_parse_entire_oneline_str);
+        lexeme.data = *s;
+        lexeme.data.count = MAX(str_end_idx, 0);
         xcs_consume_all(s);
         ctx->didWrite = true;
         ctx->mode = XCLL_MODE_NONE;

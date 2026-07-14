@@ -71,6 +71,7 @@ void test_str_eq() {
     assert_true(!xcs_has(&s1, &s3));
     assert_true(!xcs_has_cstr(&s1, "This isn't in s1!"));
     assert_true(!xcs_has_cstr(&s1, "llox"));
+    assert_true(xcs_at(&s1, xcs_index_char(&s1, xcs_at(&s1, 1))) == xcs_at(&s1, 1));
     s1 = xcs_skip(&s1, skip_l);
     s2 = xcs_skip_until(&s2, skip_until_o);
     assert_true(xcs_eq(&s1, &s2));
