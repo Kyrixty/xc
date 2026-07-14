@@ -197,6 +197,9 @@ void xcll_lex(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
      * 
      * xcll_lex will first determine which mode to lex in and on the NEXT CALL use this mode to lex correctly.
      */
+
+    // TODO: Need a trie for keyword lookups OR a hash table via gperf
+    // TODO: each mode should have it's own handler that just gets called from here. We can just interpret the context here and route to the correct goto label.
     XcLuaToken lexeme = {0};
     if (ctx->mode == XCLL_MODE_NONE) {
         // We have just started lexing a new token.
@@ -239,6 +242,8 @@ void xcll_lex(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
         if (s->count <= 1) {
             XCS_LEXER_ERROR("Expected '%c', got '\\n'\n", first);
         }
+
+        // BUG: the last character is not necessarily a ' or "! Consider the string: `"this is a string" -- followed by a comment!` (trailing " is found way earlier)
         char last = xcs_at(s, s->count - 1);
         if ((first != '"' && first != '\'') || first != last) {
             XCS_LEXER_ERROR("Expected '%c', got '%c'\n", first, last);
