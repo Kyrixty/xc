@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include "xccommon.h"
 
 static int tests_run;
 static int tests_failed;

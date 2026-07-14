@@ -7,6 +7,7 @@
 #define XC_LLEX_IMPL
 #include "xclualex.h"
 #include "arena.h"
+#include "xccommon.h"
 #include <stdio.h>
 
 XcLuaTokens xc_lua_tokenize(arena_t* mem, FILE* f) {

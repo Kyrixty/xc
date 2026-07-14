@@ -1,5 +1,5 @@
-#ifndef RCC_COMMON_H
-#define RCC_COMMON_H
+#ifndef XCC_COMMON_H
+#define XCC_COMMON_H
 #include <stdint.h>
 #include <stdbool.h>
 

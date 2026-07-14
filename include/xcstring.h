@@ -5,6 +5,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include "xccommon.h"
 
 typedef struct {
     const char* __data;
@@ -24,6 +26,12 @@ XcStringView xcs_collect_until(const XcStringView* xcs, int (*predicate)(int c))
 XcStringView xcs_skip(const XcStringView* xcs, int (*predicate)(int c));
 XcStringView xcs_skip_until(const XcStringView* xcs, int(*predicate)(int c));
 XcStringView xcs_split(const XcStringView* xcs, char c);
+/**
+ * Gets the character at index `i`.
+ * Panics if `i` is outside of the indexable range of `xcs`,
+ * that is, if `i >= xcs.count`
+ */
+char xcs_at(const XcStringView* xcs, size_t i);
 bool xcs_str_eq(const XcStringView* lhs, const XcStringView* rhs);
 bool xcs_xc_eq_cstr(const XcStringView* lhs, const char* rhs);
 
@@ -32,6 +40,13 @@ bool xcs_xc_eq_cstr(const XcStringView* lhs, const char* rhs);
 
 #define XC_STRING_IMPL
 #ifdef XC_STRING_IMPL
+
+#define XCS_PANIC_CODE 255
+#define XCS_PANIC(FMT, ...) \
+fprintf(stderr, "%s"FMT, "XCS_PANIC: ", __VA_ARGS__); \
+exit(XCS_PANIC_CODE)
+
+
 bool xcs_empty(const XcStringView* xcs) { 
     return xcs->count == 0;
 }
@@ -39,6 +54,13 @@ bool xcs_empty(const XcStringView* xcs) {
 void xcs_reset(XcStringView* xcs) {
     xcs->data = xcs->__data;
     xcs->count = strlen(xcs->__data);
+}
+
+char xcs_at(const XcStringView* xcs, size_t i) {
+    if (i >= xcs->count) {
+        XCS_PANIC("xcs_at: Index %llu is outside of indexable range. Have: 0-%llu.", i, xcs->count);
+    }
+    return xcs->data[i];
 }
 
 void xcs_chop_right(XcStringView* xcs, size_t n) {

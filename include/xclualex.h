@@ -3,6 +3,7 @@
 #include "arena.h"
 #include "xcstring.h"
 #include "xcfs.h"
+#include "xccommon.h"
 
 /**
  * @TWOFACE: This token has a different meaning depending on surrounding symbols.
@@ -126,10 +127,10 @@ XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f) {
     
     while (s.count > 0) {
         line = xcs_split(&s, '\n');
-        long __llen = line.count;
+        long __llen = line.count + 1; // for \n
         line = xcs_trim(&line);
         printf("|"XCS_FMT"|\n", XCS_Arg(line));
-        xcs_chop_left(&s, __llen + 1);
+        xcs_chop_left(&s, __llen);
     }
 
     return (XcLuaTokens) {

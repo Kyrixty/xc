@@ -1,6 +1,7 @@
 #ifndef XC_FS_H
 #define XC_FS_H
 #include <stdio.h>
+#include "xccommon.h"
 
 FILE* xc_fs_open(const char* fname, const char* mode);
 void xc_fs_close(FILE* f);
