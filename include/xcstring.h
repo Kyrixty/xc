@@ -33,6 +33,8 @@ void xcs_consume_all(XcStringView* xcs);
 bool xcs_empty(const XcStringView* xcs);
 bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix);
 bool xcs_startswith_cstr(const XcStringView* xcs, const char* prefix);
+bool xcs_endswith(const XcStringView* xcs, const XcStringView* prefix);
+bool xcs_endswith_cstr(const XcStringView* xcs, const char* prefix);
 /**
  * @return  `true`  if `xcs` contains `target`. `false` otherwise.
  */
@@ -170,6 +172,29 @@ bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix) {
 bool xcs_startswith_cstr(const XcStringView* lhs, const char* prefix) {
     XcStringView s = xcs(prefix);
     return xcs_startswith(lhs, &s);
+}
+
+bool xcs_endswith(const XcStringView* s, const XcStringView* suffix) {
+    if (xcs_empty(suffix)) {
+        return true;
+    }
+    if (xcs_empty(s)) {
+        return false;
+    }
+    if (suffix->count > s->count) {
+        return false;
+    }
+    for (size_t i = 0; i < suffix->count; i++) {
+        if (xcs_at(s, s->count - suffix->count + i) != xcs_at(suffix, i)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool xcs_endswith_cstr(const XcStringView* s, const char* suffix) {
+    XcStringView target = xcs(suffix);
+    return xcs_endswith(s, &target);
 }
 
 bool xcs_has(const XcStringView* xcs, const XcStringView* target) {
