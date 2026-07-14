@@ -18,6 +18,8 @@ void xcs_chop_left(XcStringView* xcs, size_t n);
 void xcs_chop_right(XcStringView* xcs, size_t n);
 void xcs_reset(XcStringView* xcs);
 bool xcs_empty(const XcStringView* xcs);
+bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix);
+bool xcs_startswith_cstr(const XcStringView* xcs, const char* prefix);
 XcStringView xcs_trim_left(const XcStringView* xcs);
 XcStringView xcs_trim_right(const XcStringView* xcs);
 XcStringView xcs_trim(const XcStringView* xcs);
@@ -32,8 +34,18 @@ XcStringView xcs_split(const XcStringView* xcs, char c);
  * that is, if `i >= xcs.count`
  */
 char xcs_at(const XcStringView* xcs, size_t i);
+/**
+ * @return  `true`  if two `XcStringView`s are equal.
+ */
 bool xcs_str_eq(const XcStringView* lhs, const XcStringView* rhs);
-bool xcs_xc_eq_cstr(const XcStringView* lhs, const char* rhs);
+/**
+ * @return  `true`  if the data in `rhs` is equal to the data in `lhs`.
+ */
+bool xcs_eq_cstr(const XcStringView* lhs, const char* rhs);
+
+
+
+
 
 #define XCS_FMT "%.*s"
 #define XCS_Arg(xcs) (int)(xcs).count, (xcs).data
@@ -46,6 +58,13 @@ bool xcs_xc_eq_cstr(const XcStringView* lhs, const char* rhs);
 fprintf(stderr, "%s"FMT, "XCS_PANIC: ", __VA_ARGS__); \
 exit(XCS_PANIC_CODE)
 
+XcStringView xcs(const char* str) {
+    return (XcStringView) {
+        .__data = str,
+        .data = str,
+        .count = strlen(str),
+    };
+}
 
 bool xcs_empty(const XcStringView* xcs) { 
     return xcs->count == 0;
@@ -61,6 +80,26 @@ char xcs_at(const XcStringView* xcs, size_t i) {
         XCS_PANIC("xcs_at: Index %llu is outside of indexable range. Have: 0-%llu.", i, xcs->count);
     }
     return xcs->data[i];
+}
+
+bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix) {
+    if (xcs_empty(prefix)) {
+        return true;
+    }
+    if (prefix->count > xcs->count) {
+        return false;
+    }
+    for (size_t i = 0; i < prefix->count; i++) {
+        if (prefix->data[i] != xcs->data[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool xcs_startswith_cstr(const XcStringView* lhs, const char* prefix) {
+    XcStringView s = xcs(prefix);
+    return xcs_startswith(lhs, &s);
 }
 
 void xcs_chop_right(XcStringView* xcs, size_t n) {
@@ -154,13 +193,7 @@ XcStringView xcs_trim(const XcStringView* xcs) {
     return xcs_trim_left(&copy);
 }
 
-XcStringView xcs(const char* str) {
-    return (XcStringView) {
-        .__data = str,
-        .data = str,
-        .count = strlen(str),
-    };
-}
+
 
 /* Is this bad? It definitely isn't thread-safe. */
 static int __xcs_target = 0;
@@ -187,7 +220,7 @@ bool xcs_str_eq(const XcStringView* lhs, const XcStringView* rhs) {
     return true;
 }
 
-bool xcs_xc_eq_cstr(const XcStringView* lhs, const char* rhs) {
+bool xcs_eq_cstr(const XcStringView* lhs, const char* rhs) {
     XcStringView __rhs = xcs(rhs);
     return xcs_str_eq(lhs, &__rhs);
 }
