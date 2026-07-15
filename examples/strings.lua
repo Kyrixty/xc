@@ -6,3 +6,8 @@
 [[This is
 a multiline
 string.]]
+[[
+But this multiline string doesn't have a newline!]]
+
+
+"This is the last string."
