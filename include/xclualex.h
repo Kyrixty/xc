@@ -259,12 +259,15 @@ void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexCont
     xc_memcpy(numBuf, numView.data, numView.count);
     if (dotIdx == xIdx) {
         // Only possible if both are XCS_NOT_FOUND
+        // TODO
     } else if (dotIdx != XCS_NOT_FOUND) {
-
+        // TODO
     } else if (xIdx != XCS_NOT_FOUND) {
+        // TODO
     } else {
         XCS_LEXER_ERROR("<xcll_lex_num>: No dot or x index found while parsing num.");
     }
+    // TODO: ctx modify
 }
 
 /**
