@@ -7,7 +7,8 @@
 a multiline
 string.]]
 [[
-But this multiline string doesn't have a newline!]]
+But this multiline string doesn't have a newline!]] --[[
+this multiline comment really shouldn't make it!--]]
 
 
 "This is the last string."

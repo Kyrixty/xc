@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include "xccommon.h"
 #include "xcerror.h"
+#include "xcutils.h"
 
 typedef struct {
     const char* __data;
@@ -16,7 +17,6 @@ typedef struct {
     size_t count;
 } XcStringView;
 
-size_t xcs_strlen(const char* s);
 void xcs_chop_left(XcStringView* xcs, size_t n);
 void xcs_chop_right(XcStringView* xcs, size_t n);
 void xcs_reset(XcStringView* xcs);
@@ -140,22 +140,13 @@ bool xcs_eq_cstr(const XcStringView* lhs, const char* rhs);
 #define XC_STRING_IMPL
 #ifdef XC_STRING_IMPL
 
-size_t xcs_strlen(const char* s) {
-    if (s == NULL) {
-        return 0;
-    }
-    size_t i = 0;
-    while (*s++ != 0) {
-        i++;
-    }
-    return i;
-}
+
 XcStringView xcs(const char* str) {
     return (XcStringView) {
         .__data = str,
         .data = str,
-        .__count = xcs_strlen(str),
-        .count = xcs_strlen(str),
+        .__count = xc_strlen(str),
+        .count = xc_strlen(str),
     };
 }
 
@@ -165,7 +156,7 @@ bool xcs_empty(const XcStringView* xcs) {
 
 void xcs_reset(XcStringView* xcs) {
     xcs->data = xcs->__data;
-    xcs->count = strlen(xcs->__data);
+    xcs->count = xc_strlen(xcs->__data);
 }
 
 void xcs_clear(XcStringView* xcs) {

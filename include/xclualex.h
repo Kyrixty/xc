@@ -5,6 +5,7 @@
 #include "xcfs.h"
 #include "xccommon.h"
 #include "xclist.h"
+#include "xcutils.h"
 
 /**
  * @TWOFACE: This token has a different meaning depending on surrounding symbols.
@@ -23,7 +24,6 @@ typedef enum {
     TK_INT_16,
     TK_FLOAT,
     TK_STR,
-    TK_STR_MUL,
     TK_IDENT,      // Used for variable names (i.e. `local myVar = "hello"` => `myVar` is TK_SYMBOL)
     
     // Arithmetic
@@ -180,7 +180,7 @@ void xcll_lex_comment_multiline(XcStringView* s, XcLuaToken* tokenl, XcLuaLexCon
     ctx->didWrite = false;
     ctx->mode = XCLL_MODE_NONE;
     ctx->status = XCLL_STATUS_WAITING;
-    xcs_chop_left(s, idx + xcs_strlen("]]"));
+    xcs_chop_left(s, idx + xc_strlen("]]"));
 }
 
 void xcll_lex_str(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
@@ -216,7 +216,7 @@ void xcll_lex_str(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
 
 void xcll_lex_str_multiline(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
     xcs_chop_left(s, 2);
-    // Lua ignores the first newline after [[ if [[ is immediately followed by it.
+    // Lua ignores the first newline after [[ if [[ is immediately followed by said newline.
     /**
      * i.e.
      * [[
@@ -236,10 +236,35 @@ void xcll_lex_str_multiline(XcStringView* s, XcLuaToken* token, XcLuaLexContext*
     size_t len = idx == 0 ? 0 : idx - 1; // 1 char before [[
     token->view = *s;
     token->view.count = len;
+    token->type = TK_STR;
     xcs_chop_left(s, idx + 2); // chop off str, including trailing ]]
     ctx->didWrite = true;
     ctx->mode = XCLL_MODE_NONE;
     ctx->status = XCLL_STATUS_WAITING;
+}
+
+void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
+    size_t dotIdx = xcs_index_cstr(s, ".");
+    size_t xIdx = xcs_index_cstr(s, "x");
+    if (dotIdx != XCS_NOT_FOUND && xIdx != XCS_NOT_FOUND) {
+        if (dotIdx > xIdx) {
+            XCS_LEXER_ERROR("Unexpected token 'x' while parsing float.");
+        } else {
+            XCS_LEXER_ERROR("Unexpected token '.' while parsing hex number.");
+        }
+    }
+    XcStringView numView = xcs_collect_until(s, isspace);
+    char* numBuf = ALLOC_ARRAY(mem, char, numView.count + 1);
+    numBuf[numView.count] = 0;
+    xc_memcpy(numBuf, numView.data, numView.count);
+    if (dotIdx == xIdx) {
+        // Only possible if both are XCS_NOT_FOUND
+    } else if (dotIdx != XCS_NOT_FOUND) {
+
+    } else if (xIdx != XCS_NOT_FOUND) {
+    } else {
+        XCS_LEXER_ERROR("<xcll_lex_num>: No dot or x index found while parsing num.");
+    }
 }
 
 /**
@@ -253,7 +278,7 @@ void xcll_lex_str_multiline(XcStringView* s, XcLuaToken* token, XcLuaLexContext*
  * @param[out]  token The destination token to be modified should a token be outputted.
  * Callers can know this value was modified if `ctx->didWrite == true`.
  */
-void xcll_lex(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
+void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
     /**
      * There are several modes we can be lexing in (exclusive):
      * 
@@ -309,8 +334,12 @@ void xcll_lex(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
         else if (first == '"' || first == '\'') {
             ctx->mode = XCLL_MODE_STR;
         }
+        else if ('0' <= first && first <= '9') {
+            ctx->mode = XCLL_MODE_NUM;
+        }
         goto J_LLEX_INPROGRESS;
     }
+
     if (ctx->mode == XCLL_MODE_COMMENT_MULTI) {
         // We are currently processing a multi-line comment block.
         // This block ends directly after we find ]]
@@ -318,11 +347,18 @@ void xcll_lex(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
         xcll_lex_comment_multiline(s, token, ctx);
         goto J_LLEX_WAITING;
     }
+
     if (ctx->mode == XCLL_MODE_COMMENT) {
         // This is a single-line comment. Clear `s` and output nothing.
         xcll_lex_comment(s, token, ctx);
         goto J_LLEX_WAITING;
     }
+
+    if (ctx->mode == XCLL_MODE_NUM) {
+        xcll_lex_num(mem, s, token, ctx);
+        goto J_LLEX_WAITING;
+    }
+
     if (ctx->mode == XCLL_MODE_STR) {
         xcll_lex_str(s, token, ctx);
         goto J_LLEX_WAITING;
@@ -350,15 +386,16 @@ J_LLEX_WAITING:
 
 XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f) {
     long flen = xc_fs_filelen(f);
-    char* buf = ALLOC_ARRAY(mem, char, flen);
+    char* buf = ALLOC_ARRAY(mem, char, flen + 1);
     fread(buf, 1, flen, f);
+    buf[flen] = 0;
     XcStringView s = xcs(buf);
     Xcltl* list = Xcltl_init();
     size_t lnno = 0, colno = 0;
     XcLuaToken token = {0};
     
     while (!xcs_empty(&s)) {
-        xcll_lex(&s, &token, &xcllctx);
+        xcll_lex(mem, &s, &token, &xcllctx);
         if (xcllctx.didWrite) {
             Xcltl_append(list, token);
             printf("|"XCS_FMT"|\n", XCS_Arg(token.view));
