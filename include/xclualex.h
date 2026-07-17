@@ -6,6 +6,7 @@
 #include "xccommon.h"
 #include "xclist.h"
 #include "xcutils.h"
+#include "xcfilters.h"
 
 /**
  * @TWOFACE: This token has a different meaning depending on surrounding symbols.
@@ -335,8 +336,10 @@ void xcll_lex_str_multiline(XcStringView* s, XcLuaToken* token, XcLuaLexContext*
     ctx->status = XCLL_STATUS_WAITING;
 }
 
+
+
 void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
-    XcStringView numView = xcs_collect_until(s, isspace);
+    XcStringView numView = xcs_collect(s, xcf_is_alnum_or_dot);
     size_t dotIdx = xcs_index_cstr(&numView, ".", 0);
     size_t hexIdx = xcs_index_cstr(&numView, "0x", 0);
     if (dotIdx != XCS_NOT_FOUND && hexIdx != XCS_NOT_FOUND) {
@@ -415,7 +418,6 @@ void xcll_print_token(XcLuaToken token) {
            token.line, token.col, padding, tkTypeStrMap[token.type], XCS_Arg(token.view));
 }
 
-int __not_whitespace(int c) { return !isspace(c); }
 
 /**
  * Lexes an `XcStringView`, trimming off all characters consumed in the process.
@@ -581,7 +583,7 @@ XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f, const char* fileName) {
         if (xcllctx.didWrite) {
             Xcltl_append(list, token);
             xcs_chop_right(&old, s.count);
-            XcStringView _leadingWhitespace = xcs_collect_until(&s, __not_whitespace);
+            XcStringView _leadingWhitespace = xcs_collect_until(&s, xcf_not_whitespace);
             old.count += _leadingWhitespace.count;
             size_t linesParsed = xcs_count(&old, '\n');
             int lastLineIdx = xcs_index_cstr(&old, "\n", linesParsed == 0 ? 0 : linesParsed - 1);
