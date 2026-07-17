@@ -281,6 +281,7 @@ XcStringView xcs_collect(const XcStringView* s, int (*predicate)(int c)) {
     }
     return (XcStringView) {
         .__data = s->__data,
+        .__count = s->__count,
         .data = s->data,
         .count = i,
     };
@@ -293,6 +294,7 @@ XcStringView xcs_collect_until(const XcStringView* s, int (*predicate)(int c)) {
     }
     return (XcStringView) {
         .__data = s->__data,
+        .__count = s->__count,
         .data = s->data,
         .count = i,
     };
