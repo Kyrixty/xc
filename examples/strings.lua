@@ -10,5 +10,6 @@ string.]]
 But this multiline string doesn't have a newline!]] --[[
 this multiline comment really shouldn't make it!--]]
 
-
+"This double-quoted string has two escapes: \\ and \""
+'This single-quoted string has two escapes: \\ and \"'
 "This is the last string."
