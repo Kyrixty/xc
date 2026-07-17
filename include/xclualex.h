@@ -101,6 +101,89 @@ typedef enum {
     TK_EOF,
 } XcLuaLexType;
 
+char* tkTypeStrMap[] = {
+    // Primitives
+    [TK_NIL] = "TK_NIL",
+    [TK_BOOL] = "TK_BOOL",
+    [TK_INT_10] = "TK_INT_10",
+    [TK_INT_16] = "TK_INT_16",
+    [TK_FLOAT] = "TK_FLOAT",
+    [TK_STR] = "TK_STR",
+    [TK_IDENT] = "TK_IDENT",
+    
+    // Arithmetic
+    [TK_ASSIGN] = "TK_ASSIGN",
+    [TK_EQ] = "TK_EQ",
+    [TK_NEQ] = "TK_NEQ",
+    [TK_LT] = "TK_LT",
+    [TK_GT] = "TK_GT",
+    [TK_LTE] = "TK_LTE",
+    [TK_GTE] = "TK_GTE",
+    [TK_ADD] = "TK_ADD",
+    [TK_NEG] = "TK_NEG",
+    [TK_MUL] = "TK_MUL",
+    [TK_DIV] = "TK_DIV",
+    [TK_IDIV] = "TK_IDIV",
+    [TK_MOD] = "TK_MOD",
+    [TK_EXP] = "TK_EXP",
+
+    // Reserved literals
+    [TK_FALSE] = "TK_FALSE",
+    [TK_TRUE] = "TK_TRUE",
+
+    // Keywords
+    [TK_LOCAL] = "TK_LOCAL",
+    
+    // Logical keywords
+    [TK_IF] = "TK_IF",
+    [TK_THEN] = "TK_THEN",
+    [TK_ELSE] = "TK_ELSE",
+    [TK_ELSEIF] = "TK_ELSEIF",
+    [TK_END] = "TK_END",
+    [TK_AND] = "TK_AND",
+    [TK_OR] = "TK_OR",
+    [TK_NOT] = "TK_NOT",
+    [TK_IN] = "TK_IN",
+
+    // Operators
+    [TK_LEN] = "TK_LEN",
+    [TK_DOT] = "TK_DOT",
+    [TK_CONCAT] = "TK_CONCAT",
+
+    // Control
+    [TK_FUNCTION] = "TK_FUNCTION",
+    [TK_WHILE] = "TK_WHILE",
+    [TK_FOR] = "TK_FOR",
+    [TK_DO] = "TK_DO",
+    [TK_BREAK] = "TK_BREAK",
+    [TK_REPEAT] = "TK_REPEAT",
+    [TK_UNTIL] = "TK_UNTIL",
+    [TK_RETURN] = "TK_RETURN",
+    [TK_GOTO] = "TK_GOTO",
+    [TK_VARIADIC] = "TK_VARIADIC",
+
+    // Grammar
+    [TK_COMMA] = "TK_COMMA",
+    [TK_LPAREN] = "TK_LPAREN",
+    [TK_RPAREN] = "TK_RPAREN",
+    [TK_LBRACE] = "TK_LBRACE",
+    [TK_RBRACE] = "TK_RBRACE",
+    [TK_LBRACK] = "TK_LBRACK",
+    [TK_RBRACK] = "TK_RBRACK",
+    [TK_COLON] = "TK_COLON",
+    [TK_SEMICOLON] = "TK_SEMICOLON",
+
+    // Bitwise
+    [TK_BWAND] = "TK_BWAND",
+    [TK_BWOR] = "TK_BWOR",
+    [TK_RSHIFT] = "TK_RSHIFT",
+    [TK_LSHIFT] = "TK_LSHIFT",
+    [TK_TILDE] = "TK_TILDE",
+    
+    // File-related
+    [TK_EOF] = "TK_EOF"
+};
+
 typedef struct {
     XcLuaLexType type;
     XcStringView view;
@@ -295,12 +378,34 @@ void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexCont
         XCS_LEXER_ERROR("<xcll_lex_num>: No dot or x index found while parsing num.");
     }
 
-    // TODO: ctx modify
     // Fortunately, in all cases the view parsing is the same
     token->view = numView;
     xcs_chop_left(s, numView.count);
     ctx->didWrite = true;
     ctx->mode = XCLL_MODE_NONE;
+}
+
+int get_max_token_length(void) {
+    int max_len = 0;
+    for (int i = 0; i <= TK_EOF; i++) {
+        if (tkTypeStrMap[i]) {
+            int len = strlen(tkTypeStrMap[i]);
+            if (len > max_len) {
+                max_len = len;
+            }
+        }
+    }
+    return max_len;
+}
+
+void xcll_print_token(XcLuaToken token, int line) {
+    static int padding = 0;
+    if (padding == 0) {
+        padding = get_max_token_length();
+    }
+
+    printf("[Line %3d] Type: %-*s | Lexeme: '"XCS_FMT"'\n", 
+           line, padding, tkTypeStrMap[token.type], XCS_Arg(token.view));
 }
 
 /**
@@ -446,6 +551,11 @@ XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f) {
     }
     xcll_lex(mem, &s, &token, &xcllctx);  // EOF
     Xcltl_append(list, token);
+
+    for (size_t i = 0; i < Xcltl_len(list); i++) {
+        XcLuaToken printToken = Xcltl_get(list, i);
+        xcll_print_token(printToken, 0); // NOTE: lnno won't work here, need to store per-token lnnos
+    }
 
     return (XcLuaTokens) {
         .n_tokens = 0,
