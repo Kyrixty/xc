@@ -82,6 +82,8 @@ int xc_parse_int(const char* buf, int base, size_t* nParsed) {
     if (buf[i] == '-') {
         sign = -1;
         i++;
+    } else if (buf[i] == '+') {
+        i++;
     }
 
     int num = 0;
@@ -90,7 +92,8 @@ int xc_parse_int(const char* buf, int base, size_t* nParsed) {
         if (digit == -1) {
             break;
         }
-        num += (int)pow(base, len - i - 1) * digit;
+        num *= base;
+        num += digit;
         i++;
     }
 
