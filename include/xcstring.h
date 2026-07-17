@@ -45,8 +45,8 @@ bool xcs_has_cstr(const XcStringView* xcs, const char* target);
 /**
  * @return `int`   The index of the first occurrence of `target` found in `xcs`, or `XCS_NOT_FOUND` if no match was found.
  */
-int xcs_index(const XcStringView* s, const XcStringView* target);
-int xcs_index_cstr(const XcStringView* s, const char* target);
+int xcs_index(const XcStringView* s, const XcStringView* target, size_t skip);
+int xcs_index_cstr(const XcStringView* s, const char* target, size_t skip);
 XcStringView xcs_trim_left(const XcStringView* s);
 XcStringView xcs_trim_right(const XcStringView* s);
 XcStringView xcs_trim(const XcStringView* s);
@@ -175,14 +175,27 @@ inline char xcs_at(const XcStringView* xcs, size_t i) {
     return xcs->data[i];
 }
 
-int xcs_index(const XcStringView* source, const XcStringView* target) {
+size_t xcs_count(const XcStringView* source, char c) {
+    size_t count = 0;
+    if (xcs_empty(source)) {
+        return 0;
+    }
+    for (size_t i = 0; i < source->count; i++) {
+        if (xcs_at(source, i) == c) {
+            count++;
+        }
+    }
+    return count;
+}
+
+int xcs_index(const XcStringView* source, const XcStringView* target, size_t skip) {
     if (xcs_empty(target)) {
         return 0;
     }
     if (xcs_empty(source) || target->count > source->count) {
         return XCS_NOT_FOUND;
     }
-    size_t left = 0, n = 0;
+    size_t left = 0, n = 0, skipped = 0;
     for (; left < source->count; left += n) {
         bool matched = true;
         for (n = 0; n < target->count; n++) {
@@ -192,25 +205,30 @@ int xcs_index(const XcStringView* source, const XcStringView* target) {
             }
         }
         if (matched) {
-            return left;
+            if (skipped < skip) {
+                skipped++;
+            } else {
+                return left;
+            }
         }
         n = MAX(1, n); // if the first pass failed, then n = 0 and we will infinitely loop
     }
     return XCS_NOT_FOUND;
 }
 
-int xcs_index_cstr(const XcStringView* source, const char* target) {
+
+int xcs_index_cstr(const XcStringView* source, const char* target, size_t skip) {
     XcStringView _target = xcs(target);
-    return xcs_index(source, &_target);
+    return xcs_index(source, &_target, skip);
 }
 
-int xcs_index_char(const XcStringView* source, char target) {
+int xcs_index_char(const XcStringView* source, char target, size_t skip) {
     char buf[2] = {target, 0};
-    return xcs_index_cstr(source, buf);
+    return xcs_index_cstr(source, buf, skip);
 }
 
 bool xcs_startswith(const XcStringView* xcs, const XcStringView* prefix) {
-    return xcs_index(xcs, prefix) == 0;
+    return xcs_index(xcs, prefix, 0) == 0;
     // if (xcs_empty(prefix)) {
     //     return true;
     // }
@@ -254,7 +272,7 @@ bool xcs_endswith_cstr(const XcStringView* s, const char* suffix) {
 }
 
 bool xcs_has(const XcStringView* xcs, const XcStringView* target) {
-    return xcs_index(xcs, target) != XCS_NOT_FOUND;
+    return xcs_index(xcs, target, 0) != XCS_NOT_FOUND;
 }
 
 bool xcs_has_cstr(const XcStringView* source, const char* target) {

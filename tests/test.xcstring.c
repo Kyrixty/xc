@@ -29,6 +29,8 @@ void test_str_eq() {
     assert_true(xcs_at(&s1, 0) == 'h');
 
     assert_true(xcs_eq_cstr(&s1, strdup("hello")));
+    assert_true(xcs_count(&s1, 'l') == xcs_count(&s2, 'l'));
+    assert_true(xcs_count(&s1, 'l') == 2);
 
     XcStringView sub = xcs_substring(&s1, 1, 4);
     assert_true(xcs_eq_cstr(&sub, "ell"));
@@ -45,9 +47,9 @@ void test_str_eq() {
     assert_true(!xcs_startswith(&s2, &s3));
     assert_true(!xcs_startswith_cstr(&s1, "s1 doesn't start with this!"));
 
-    assert_true(xcs_index(&s1, &s2) == 0);
-    assert_true(xcs_index_cstr(&s1, "e") == 1);
-    assert_true(xcs_index_cstr(&s1, "a") == -1);
+    assert_true(xcs_index(&s1, &s2, 0) == 0);
+    assert_true(xcs_index_cstr(&s1, "e", 0) == 1);
+    assert_true(xcs_index_cstr(&s1, "a", 0) == -1);
 
     xcs_chop_right(&s2, 1);
     assert_true(!xcs_eq(&s1, &s2));
@@ -60,9 +62,10 @@ void test_str_eq() {
     xcs_chop_left(&s2, 2);
     assert_true(xcs_eq(&s1, &s2));
 
-    assert_true(xcs_index(&s1, &s2) == 0);
-    assert_true(xcs_index_cstr(&s1, "l") == xcs_index_cstr(&s2, "l"));
-    assert_true(xcs_index_cstr(&s1, "l") == 0);
+    assert_true(xcs_index(&s1, &s2, 0) == 0);
+    assert_true(xcs_index_cstr(&s1, "l", 0) == xcs_index_cstr(&s2, "l", 0));
+    assert_true(xcs_index_cstr(&s1, "l", 1) == 1);
+    assert_true(xcs_index_cstr(&s1, "l", 0) == 0);
     assert_true(xcs_startswith(&s1, &s2));
     assert_true(xcs_startswith_cstr(&s1, "llo"));
     assert_true(xcs_startswith_cstr(&s1, "ll"));
@@ -74,9 +77,13 @@ void test_str_eq() {
     assert_true(!xcs_has(&s1, &s3));
     assert_true(!xcs_has_cstr(&s1, "This isn't in s1!"));
     assert_true(!xcs_has_cstr(&s1, "llox"));
+    assert_true(xcs_count(&s1, 'h') == 0);
+    assert_true(xcs_count(&s1, 'e') == 0);
+    assert_true(xcs_count(&s1, 'l') == 2);
+    assert_true(xcs_count(&s1, 'o') == 1);
     sub = xcs_substring(&s1, 0, 3);
     assert_true(xcs_eq_cstr(&sub, "llo"));
-    assert_true(xcs_at(&s1, xcs_index_char(&s1, xcs_at(&s1, 1))) == xcs_at(&s1, 1));
+    assert_true(xcs_at(&s1, xcs_index_char(&s1, xcs_at(&s1, 1), 0)) == xcs_at(&s1, 1));
     s1 = xcs_skip(&s1, skip_l);
     s2 = xcs_skip_until(&s2, skip_until_o);
     assert_true(xcs_eq(&s1, &s2));
