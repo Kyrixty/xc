@@ -587,6 +587,7 @@ XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f, const char* fileName) {
             old.count += _leadingWhitespace.count;
             size_t linesParsed = xcs_count(&old, '\n');
             int lastLineIdx = xcs_index_cstr(&old, "\n", linesParsed == 0 ? 0 : linesParsed - 1);
+            // BUG: Line numbers + column numbers are way off
             lnno += linesParsed;
             colno = lastLineIdx == XCS_NOT_FOUND ? (colno + old.count) : (old.count - lastLineIdx - 1);
             printf(XCS_FMT"\n", XCS_Arg(token.view));
