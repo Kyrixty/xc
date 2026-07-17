@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     FILE* f = xc_fs_open(argv[1], "r");
-    xc_lua_tokenize(globalArena, f);
+    xc_lua_tokenize(globalArena, f, argv[1]);
 
     goto XC_CLEANUP;
 XC_CLEANUP:

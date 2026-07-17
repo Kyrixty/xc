@@ -199,7 +199,8 @@ int xcs_index(const XcStringView* source, const XcStringView* target, size_t ski
     for (; left < source->count; left += n) {
         bool matched = true;
         for (n = 0; n < target->count; n++) {
-            if (xcs_at(source, left + n) != xcs_at(target, n)) {
+            // avoid source->count not being divisible by target->count
+            if (left + n >= source->count || xcs_at(source, left + n) != xcs_at(target, n)) {
                 matched = false;
                 break;
             }

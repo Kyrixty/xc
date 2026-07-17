@@ -10,9 +10,9 @@
 #include "xccommon.h"
 #include <stdio.h>
 
-XcLuaTokens xc_lua_tokenize(arena_t* mem, FILE* f) {
+XcLuaTokens xc_lua_tokenize(arena_t* mem, FILE* f, const char* fileName) {
     // just a wrapper for now
-    return xc_lualex_tokenize(mem, f);
+    return xc_lualex_tokenize(mem, f, fileName);
 }
 
 #endif

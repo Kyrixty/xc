@@ -101,6 +101,8 @@ typedef enum {
     TK_EOF,
 } XcLuaLexType;
 
+static XcStringView* lineSrcMap;
+
 char* tkTypeStrMap[] = {
     // Primitives
     [TK_NIL] = "TK_NIL",
@@ -194,6 +196,7 @@ typedef struct {
     } val;
     size_t line;
     size_t col;
+    const char* fileName;
 } XcLuaToken;
 
 typedef struct {
@@ -244,6 +247,10 @@ typedef struct {
 
 static XcLuaLexContext xcllctx;
 
+#define XCS_LEXER_ERROR(fmt, token, ...) _XCS_LEXER_ERROR(fmt, "\n%s@%llu:%llu\n\t"XCS_FMT"\n", \
+    (token)->fileName, (token)->line, (token)->col, XCS_Arg(lineSrcMap[(token)->line - 1]) __VA_OPT__(,) __VA_ARGS__)
+static const XcLuaToken NULL_XCLL_TOKEN = {0};
+
 void xcll_lex_comment(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
     // This is a single-line comment. Clear `s` and output nothing.
     XcStringView comment = xcs_split(s, '\n');
@@ -253,10 +260,10 @@ void xcll_lex_comment(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) 
     ctx->status = XCLL_STATUS_WAITING;
 }
 
-void xcll_lex_comment_multiline(XcStringView* s, XcLuaToken* tokenl, XcLuaLexContext* ctx) {
-    size_t idx = xcs_index_cstr(s, "]]");
+void xcll_lex_comment_multiline(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
+    size_t idx = xcs_index_cstr(s, "]]", 0);
     if (idx == XCS_NOT_FOUND) {
-        XCS_LEXER_ERROR("Cannot find end of multiline comment. Expected ']]' but got <EOF>.")
+        XCS_LEXER_ERROR("Cannot find end of multiline comment. Expected ']]' but got <EOF>.", token);
     }
     ctx->didWrite = false;
     ctx->mode = XCLL_MODE_NONE;
@@ -287,7 +294,7 @@ void xcll_lex_str(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
     }
 
     if (s->count <= 1 || str_end_idx == -1) {
-        XCS_LEXER_ERROR("Cannot find end of string. '' Expected '%c', got '\\n'\n", first);
+        XCS_LEXER_ERROR("Cannot find end of string. '' Expected '%c', got '\\n'\n", token, first);
     }
 
     token->type = TK_STR;
@@ -314,9 +321,9 @@ void xcll_lex_str_multiline(XcStringView* s, XcLuaToken* token, XcLuaLexContext*
      *  => "String\n\n" (trailing \n after "Strin\n" included)
      */
     *s = xcs_trim_left(s);
-    size_t idx = xcs_index_cstr(s, "]]");
+    size_t idx = xcs_index_cstr(s, "]]", 0);
     if (idx == XCS_NOT_FOUND) {
-        XCS_LEXER_ERROR("Cannot find end of multi-line string. Expected ']]' but got <EOF>.");
+        XCS_LEXER_ERROR("Cannot find end of multi-line string. Expected ']]' but got <EOF>.", token);
     }
     size_t len = idx == 0 ? 0 : idx - 1; // 1 char before [[
     token->view = *s;
@@ -330,13 +337,13 @@ void xcll_lex_str_multiline(XcStringView* s, XcLuaToken* token, XcLuaLexContext*
 
 void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
     XcStringView numView = xcs_collect_until(s, isspace);
-    size_t dotIdx = xcs_index_cstr(&numView, ".");
-    size_t hexIdx = xcs_index_cstr(&numView, "0x");
+    size_t dotIdx = xcs_index_cstr(&numView, ".", 0);
+    size_t hexIdx = xcs_index_cstr(&numView, "0x", 0);
     if (dotIdx != XCS_NOT_FOUND && hexIdx != XCS_NOT_FOUND) {
         if (dotIdx < hexIdx) {
-            XCS_LEXER_ERROR("Unexpected token '0x' while parsing float.");
+            XCS_LEXER_ERROR("Unexpected token '0x' while parsing float.", token);
         } else {
-            XCS_LEXER_ERROR("Unexpected token '.' while parsing hex number.");
+            XCS_LEXER_ERROR("Unexpected token '.' while parsing hex number.", token);
         }
     }
     
@@ -348,7 +355,7 @@ void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexCont
         size_t nParsed = 0;
         int v = xc_parse_int(numView.data, 10, &nParsed);
         if (nParsed != numView.count) {
-            XCS_LEXER_ERROR("Error while parsing int: '"XCS_FMT"' is invalid (parsed %llu characters)", XCS_Arg(numView), nParsed);
+            XCS_LEXER_ERROR("Error while parsing int: '"XCS_FMT"' is invalid (parsed %llu characters)", token, XCS_Arg(numView), nParsed);
         }
         token->val.num = v;
         token->type = TK_INT_10;
@@ -357,25 +364,25 @@ void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexCont
         char* end = NULL;
         double v = strtod(numView.data, &end);
         if ((end - numView.data) != numView.count) {
-            XCS_LEXER_ERROR("Error while parsing float: '"XCS_FMT"' is invalid (parsed %llu chars).", XCS_Arg(numView), numView.count - (end - numView.data));
+            XCS_LEXER_ERROR("Error while parsing float: '"XCS_FMT"' is invalid (parsed %llu chars).", token, XCS_Arg(numView), numView.count - (end - numView.data));
         }
         token->val.dec = v;
         token->type = TK_FLOAT;
     } else if (hexIdx != XCS_NOT_FOUND) {
         // Must be of the form '0xffac...'. If x is found later, it is invalid.
         if (hexIdx != 0) {
-            XCS_LEXER_ERROR("Error while parsing hex number: '0x' found at index %llu but expected at index 0.", hexIdx);
+            XCS_LEXER_ERROR("Error while parsing hex number: '0x' found at index %llu but expected at index 0.", token, hexIdx);
         }
         //HACK
         size_t nParsed = 0;
         int num = xc_parse_int(numView.data + 2, 16, &nParsed);
         if (nParsed != numView.count - 2) {
-            XCS_LEXER_ERROR("Error while parsing hex number: '"XCS_FMT"' is invalid (parsed %llu chars).", XCS_Arg(numView), nParsed);
+            XCS_LEXER_ERROR("Error while parsing hex number: '"XCS_FMT"' is invalid (parsed %llu chars).", token, XCS_Arg(numView), nParsed);
         }
         token->type = TK_INT_16;
         token->val.num = num;
     } else {
-        XCS_LEXER_ERROR("<xcll_lex_num>: No dot or x index found while parsing num.");
+        XCS_LEXER_ERROR("<xcll_lex_num>: No dot or x index found while parsing num. Please report this to the xc developers.", token);
     }
 
     // Fortunately, in all cases the view parsing is the same
@@ -398,15 +405,17 @@ int get_max_token_length(void) {
     return max_len;
 }
 
-void xcll_print_token(XcLuaToken token, int line) {
+void xcll_print_token(XcLuaToken token) {
     static int padding = 0;
     if (padding == 0) {
         padding = get_max_token_length();
     }
 
-    printf("[Line %3d] Type: %-*s | Lexeme: '"XCS_FMT"'\n", 
-           line, padding, tkTypeStrMap[token.type], XCS_Arg(token.view));
+    printf("[%llu:%llu]\tType: %-*s | Lexeme: '"XCS_FMT"'\n", 
+           token.line, token.col, padding, tkTypeStrMap[token.type], XCS_Arg(token.view));
 }
+
+int __not_whitespace(int c) { return !isspace(c); }
 
 /**
  * Lexes an `XcStringView`, trimming off all characters consumed in the process.
@@ -419,7 +428,8 @@ void xcll_print_token(XcLuaToken token, int line) {
  * @param[out]  token The destination token to be modified should a token be outputted.
  * Callers can know this value was modified if `ctx->didWrite == true`.
  */
-void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
+void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token, 
+            XcLuaLexContext* ctx, size_t lnno, size_t colno) {
     /**
      * There are several modes we can be lexing in (exclusive):
      * 
@@ -465,6 +475,8 @@ void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexContext*
          * The mode selector should not modify input. Even if it seems unimportant, do not alter
          * input past what `s` is at this point. That is the job of xcll_lex_* functions.
          */
+        token->line = lnno;
+        token->col = colno;
         if (xcs_empty(s)) {
             token->view = *s;
             token->type = TK_EOF;
@@ -531,30 +543,60 @@ J_LLEX_WAITING:
     }
 }
 
-XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f) {
+void setupLineSrcMap(arena_t* mem, const XcStringView* source) {
+    size_t nLines = xcs_count(source, '\n') + 1;
+    size_t lastLineIdx = 0;
+    lineSrcMap = ALLOC_ARRAY(mem, XcStringView, nLines);
+    for (size_t i = 0; i < nLines; i++) {
+        size_t nextLineIdx = xcs_index_cstr(source, "\n", i);
+        if (nextLineIdx == XCS_NOT_FOUND) {
+            // EOF
+            nextLineIdx = source->count - 1;
+        }
+        XcStringView line = xcs_substring(
+            source,
+            lastLineIdx,
+            nextLineIdx
+        );
+        lineSrcMap[i] = line;
+        lastLineIdx = nextLineIdx + 1;
+    }
+}
+
+XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f, const char* fileName) {
     long flen = xc_fs_filelen(f);
     char* buf = ALLOC_ARRAY(mem, char, flen + 1);
     fread(buf, 1, flen, f);
     buf[flen] = 0;
     XcStringView s = xcs(buf);
     Xcltl* list = Xcltl_init();
-    size_t lnno = 0, colno = 0;
+    size_t lnno = 1, colno = 0;
     XcLuaToken token = {0};
-    
+    token.fileName = fileName;
+    setupLineSrcMap(mem, &s);
+
     while (!xcs_empty(&s)) {
-        xcll_lex(mem, &s, &token, &xcllctx);
+        XcStringView old = s;
+        xcll_lex(mem, &s, &token, &xcllctx, lnno, colno);
         if (xcllctx.didWrite) {
             Xcltl_append(list, token);
-            printf("|"XCS_FMT"|\n", XCS_Arg(token.view));
+            xcs_chop_right(&old, s.count);
+            XcStringView _leadingWhitespace = xcs_collect_until(&s, __not_whitespace);
+            old.count += _leadingWhitespace.count;
+            size_t linesParsed = xcs_count(&old, '\n');
+            int lastLineIdx = xcs_index_cstr(&old, "\n", linesParsed == 0 ? 0 : linesParsed - 1);
+            lnno += linesParsed;
+            colno = lastLineIdx == XCS_NOT_FOUND ? (colno + old.count) : (old.count - lastLineIdx - 1);
+            printf(XCS_FMT"\n", XCS_Arg(token.view));
         }
         printf("%p %llu\n", s.data, s.count);
     }
-    xcll_lex(mem, &s, &token, &xcllctx);  // EOF
+    xcll_lex(mem, &s, &token, &xcllctx, lnno, colno);  // EOF
     Xcltl_append(list, token);
 
     for (size_t i = 0; i < Xcltl_len(list); i++) {
         XcLuaToken printToken = Xcltl_get(list, i);
-        xcll_print_token(printToken, 0); // NOTE: lnno won't work here, need to store per-token lnnos
+        xcll_print_token(printToken); // NOTE: lnno won't work here, need to store per-token lnnos
     }
 
     return (XcLuaTokens) {
