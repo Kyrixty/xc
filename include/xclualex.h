@@ -326,7 +326,7 @@ void xcll_lex_str_multiline(XcStringView* s, XcLuaToken* token, XcLuaLexContext*
     if (idx == XCS_NOT_FOUND) {
         XCS_LEXER_ERROR("Cannot find end of multi-line string. Expected ']]' but got <EOF>.", token);
     }
-    size_t len = idx == 0 ? 0 : idx - 1; // 1 char before [[
+    size_t len = idx == 0 ? 0 : idx; // 1 char before [[
     token->view = *s;
     token->view.count = len;
     token->type = TK_STR;
