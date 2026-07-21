@@ -852,7 +852,7 @@ void setupLineSrcMap(arena_t* mem, const XcStringView* source) {
         size_t nextLineIdx = xcs_index_cstr(source, "\n", i);
         if (nextLineIdx == XCS_NOT_FOUND) {
             // EOF
-            nextLineIdx = source->count - 1;
+            nextLineIdx = source->count;
         }
         XcStringView line = xcs_substring(
             source,
