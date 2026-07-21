@@ -701,6 +701,7 @@ void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token,
                     // cannot match to any other mode, so we assume it is an identifier
                     // though this identifier may not be valid. It is up to the parser
                     // to validate this, though.
+                    // BUG: This is not true! Keywords are still possible here (which we haven't implemented yet.)
                     ctx->mode = XCLL_MODE_IDENT;
                 }; break;
             }
