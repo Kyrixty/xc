@@ -7,6 +7,7 @@
 #include "xclist.h"
 #include "xcutils.h"
 #include "xcfilters.h"
+#include "luakeywords.h"
 
 /**
  * @TWOFACE: This token has a different meaning depending on surrounding symbols.
@@ -100,6 +101,9 @@ typedef enum {
     
     // File-related
     TK_EOF,
+
+    // Debug
+    TK_ERROR,       // Generally found when wordToTypeMap fails
 } XcLuaLexType;
 
 static XcStringView* lineSrcMap;
@@ -185,6 +189,39 @@ char* tkTypeStrMap[] = {
     
     // File-related
     [TK_EOF] = "TK_EOF"
+};
+
+// Generated from wordlist in luakeywords.h, be careful when modifying/regenerating
+XcLuaLexType wordToTypeMap[] = {
+    TK_ERROR, TK_ERROR,
+    TK_IN,
+    TK_NIL,
+    TK_ERROR,
+    TK_LOCAL,
+    TK_RETURN,
+    TK_IF,
+    TK_FOR,
+    TK_ERROR,
+    TK_WHILE,
+    TK_ERROR,
+    TK_OR,
+    TK_FUNCTION,
+    TK_ELSE,
+    TK_FALSE,
+    TK_ELSEIF,
+    TK_ERROR,
+    TK_NOT,
+    TK_THEN,
+    TK_UNTIL,
+    TK_REPEAT,
+    TK_ERROR,
+    TK_END,
+    TK_TRUE,
+    TK_BREAK,
+    TK_ERROR,
+    TK_DO,
+    TK_AND,
+    TK_GOTO,
 };
 
 #define LT '<'
@@ -289,6 +326,7 @@ typedef enum {
     XCLL_MODE_STR,
     XCLL_MODE_STR_MULTI,
     XCLL_MODE_OPERATOR,
+    XCLL_MODE_KEYWORD,
     XCLL_MODE_IDENT,
 } XcLuaLexMode;
 
@@ -398,6 +436,9 @@ void xcll_lex_str_multiline(XcStringView* s, XcLuaToken* token, XcLuaLexContext*
 
 
 void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
+    // BUG: this doesn't actually validate that the input is valid.
+    // For example, 5.123.122.4444 will be lexed fully even though this should error.
+    // xcs_collect probably isn't enough here, we probably need to write the number collector by hand
     XcStringView numView = xcs_collect(s, xcf_is_alnum_or_dot);
     size_t dotIdx = xcs_index_cstr(&numView, ".", 0);
     size_t hexIdx = xcs_index_cstr(&numView, "0x", 0);
@@ -455,7 +496,7 @@ void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexCont
 }
 
 void xcll_lex_operator(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
-    char first = xcs_at(s, 0), second, third;
+    char first = xcs_at(s, 0), second;
     XcStringView view = xcs_substring(s, 0, 1);
     // one-char operators
     switch (first) {
@@ -564,6 +605,31 @@ XCLL_LLEX_OP_RET:
     xcs_chop_left(s, view.count);
 }
 
+
+void xcll_lex_keyword(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
+    // Guaranteed to be a keyword at this point from `xcll_lex`
+    XcStringView kwView = xcs_collect(s, xcf_is_alnum_or_underscore);
+    char* tmp = ALLOC_ARRAY(mem, char, kwView.count + 1);
+    xc_memcpy(tmp, kwView.data, kwView.count);
+    int kwHash = hash(tmp, kwView.count);
+    token->type = wordToTypeMap[kwHash];
+    token->view = kwView;
+    ctx->didWrite = true;
+    ctx->mode = XCLL_MODE_NONE;
+    xcs_chop_left(s, kwView.count);
+    arena_pop(mem, kwView.count);
+}
+
+
+void xcll_lex_ident(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
+    XcStringView identView = xcs_collect(s, xcf_is_alnum_or_underscore);
+    token->view = identView;
+    token->type = TK_IDENT;
+    ctx->didWrite = true;
+    ctx->mode = XCLL_MODE_NONE;
+    xcs_chop_left(s, identView.count);
+}
+
 int get_max_token_length(void) {
     int max_len = 0;
     for (int i = 0; i <= TK_EOF; i++) {
@@ -633,9 +699,8 @@ void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token,
     // TODO: need line + col numbers
     // TODO: each mode should have it's own handler that just gets called from here. We can just interpret the context here and route to the correct goto label.
     // IDEA: just pass lexeme into lex functions in case we want to verify outputs or something along those lines.
-    // NOTE: Currently in process of migrating the lexer to not just handle single lines, since a lot
-    // of things in Lua require multiple lines (comments, strings, tables, etc.)
-    // As a result, xcs_consume_all should NOT be used ANYWHERE on `s` in this function!
+    // BUG: as noted in xcll_lex_num, many of these lex functions need to validate the input form and surrounding characters
+    // BUG: (ct'd) in general we have been testing for lexing valid input. But we haven't really considered many invalid inputs (i.e. 55555hello => TK_INT_10, TK_IDENT when it should error instead)
     XcLuaToken lexeme = {0};
     *s = xcs_trim_left(s); // Remove leading whitespace
     if (ctx->mode == XCLL_MODE_NONE) {
@@ -698,11 +763,21 @@ void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token,
                 }; break;
 
                 default: {
-                    // cannot match to any other mode, so we assume it is an identifier
-                    // though this identifier may not be valid. It is up to the parser
-                    // to validate this, though.
-                    // BUG: This is not true! Keywords are still possible here (which we haven't implemented yet.)
-                    ctx->mode = XCLL_MODE_IDENT;
+                    // Note that due to xcll_lex_num being handled earlier `s` cannot start
+                    // with a number at this point. `s` also can't be empty here either
+                    XcStringView kwOrIdent = xcs_collect(s, xcf_is_alnum_or_underscore);
+                    if (xcs_empty(&kwOrIdent)) {
+                        XCS_LEXER_ERROR("Unrecognized character: '%c'.", token, xcs_at(s, 0));
+                    }
+                    char* tmp = ALLOC_ARRAY(mem, char, kwOrIdent.count + 1);
+                    xc_memcpy(tmp, kwOrIdent.data, kwOrIdent.count);
+                    bool isKw = in_word_set(tmp, kwOrIdent.count);
+                    arena_pop(mem, kwOrIdent.count);
+                    if (isKw) {
+                        ctx->mode = XCLL_MODE_KEYWORD;
+                    } else {
+                        ctx->mode = XCLL_MODE_IDENT;
+                    }
                 }; break;
             }
         }
@@ -741,6 +816,16 @@ void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token,
 
     if (ctx->mode == XCLL_MODE_OPERATOR) {
         xcll_lex_operator(s, token, ctx);
+        goto J_LLEX_WAITING;
+    }
+
+    if (ctx->mode == XCLL_MODE_KEYWORD) {
+        xcll_lex_keyword(mem, s, token, ctx);
+        goto J_LLEX_WAITING;
+    }
+
+    if (ctx->mode == XCLL_MODE_IDENT) {
+        xcll_lex_ident(s, token, ctx);
         goto J_LLEX_WAITING;
     }
 
