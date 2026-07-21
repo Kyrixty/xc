@@ -35,13 +35,14 @@ typedef enum {
     TK_GT,          // >
     TK_LTE,         // <=
     TK_GTE,         // >=
-    TK_ADD,         // +
-    TK_NEG,         // PARSERS @TWOFACE: `a - b` is different from `-b`
+    TK_PLUS,        // +
+    TK_MINUS,       // PARSERS @TWOFACE: `a - b` is different from `-b`
     TK_MUL,         // *
     TK_DIV,         // /
     TK_IDIV,        // //
     TK_MOD,         // %
     TK_EXP,         // ^
+    TK_SQUIGGLE,    // ~  || PARSERS @TWOFACE: a ~ b is XOR (a ^ b), ~b is NOT (~b)
 
     // Reserved literals
     TK_FALSE,
@@ -96,7 +97,6 @@ typedef enum {
     TK_BWOR,
     TK_RSHIFT,
     TK_LSHIFT,
-    TK_TILDE,       // PARSERS @TWOFACE: a ~ b is XOR (a ^ b), ~b is NOT (~b)
     
     // File-related
     TK_EOF,
@@ -122,8 +122,8 @@ char* tkTypeStrMap[] = {
     [TK_GT] = "TK_GT",
     [TK_LTE] = "TK_LTE",
     [TK_GTE] = "TK_GTE",
-    [TK_ADD] = "TK_ADD",
-    [TK_NEG] = "TK_NEG",
+    [TK_PLUS] = "TK_PLUS",
+    [TK_MINUS] = "TK_MINUS",
     [TK_MUL] = "TK_MUL",
     [TK_DIV] = "TK_DIV",
     [TK_IDIV] = "TK_IDIV",
@@ -181,11 +181,72 @@ char* tkTypeStrMap[] = {
     [TK_BWOR] = "TK_BWOR",
     [TK_RSHIFT] = "TK_RSHIFT",
     [TK_LSHIFT] = "TK_LSHIFT",
-    [TK_TILDE] = "TK_TILDE",
+    [TK_SQUIGGLE] = "TK_SQUIGGLE",
     
     // File-related
     [TK_EOF] = "TK_EOF"
 };
+
+#define LT '<'
+#define GT '>'
+#define BWAND '&'
+#define BWOR '|'
+#define EQ '='
+#define PLUS '+'
+#define MINUS '-'
+#define MUL '*'
+#define DIV '/'
+#define NEG '-'
+#define MOD '%'
+#define EXP '^'
+#define LEN '#'
+#define DOT '.'
+#define COMMA ','
+#define LPAREN '('
+#define RPAREN ')'
+#define LBRACE '{'
+#define RBRACE '}'
+#define LBRACK '['
+#define RBRACK ']'
+#define COLON ':'
+#define SEMICOLON ';'
+#define SQUIGGLE '~'
+
+XcLuaLexType charToTypeMap[256] = {
+    // Arithmetic operators
+    [PLUS]      = TK_PLUS,
+    [MINUS]     = TK_MINUS,   // Maps to NEG; parser can contextually treat as binary subtraction
+    [MUL]       = TK_MUL,
+    [DIV]       = TK_DIV,     // Parser lookahead checks for second '/' to upgrade to TK_IDIV
+    [MOD]       = TK_MOD,
+    [EXP]       = TK_EXP,
+
+    // Assignment & Comparisons
+    [EQ]        = TK_ASSIGN,  // Default single '='. Parser lookahead upgrades to TK_EQ on '=='
+    [LT]        = TK_LT,      // Default '<'. Parser lookahead upgrades to TK_LTE on '<=' or TK_LSHIFT on '<<'
+    [GT]        = TK_GT,      // Default '>'. Parser lookahead upgrades to TK_GTE on '>=' or TK_RSHIFT on '>>'
+
+    // String & Length operators
+    [LEN]       = TK_LEN,
+    [DOT]       = TK_DOT,     // Default '.'. Parser lookahead checks for '..' (TK_CONCAT) or '...' (TK_VARIADIC)
+
+    // Grammar & Structure delimiters
+    [COMMA]     = TK_COMMA,
+    [LPAREN]    = TK_LPAREN,
+    [RPAREN]    = TK_RPAREN,
+    [LBRACE]    = TK_LBRACE,
+    [RBRACE]    = TK_RBRACE,
+    [LBRACK]    = TK_LBRACK,
+    [RBRACK]    = TK_RBRACK,
+    [COLON]     = TK_COLON,
+    [SEMICOLON] = TK_SEMICOLON,
+
+    // Bitwise operators (Lua 5.3+)
+    [BWAND]     = TK_BWAND,
+    [BWOR]      = TK_BWOR,
+    [SQUIGGLE]  = TK_SQUIGGLE,   // Default '~'. Parser lookahead upgrades to TK_NEQ if followed by '='
+};
+
 
 typedef struct {
     XcLuaLexType type;
@@ -225,10 +286,9 @@ typedef enum {
     XCLL_MODE_COMMENT,
     XCLL_MODE_COMMENT_MULTI,
     XCLL_MODE_NUM,
-    XCLL_MODE_IMM,
     XCLL_MODE_STR,
     XCLL_MODE_STR_MULTI,
-    XCLL_MODE_SYMBOL,
+    XCLL_MODE_OPERATOR,
     XCLL_MODE_IDENT,
 } XcLuaLexMode;
 
@@ -295,7 +355,7 @@ void xcll_lex_str(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
     }
 
     if (s->count <= 1 || str_end_idx == -1) {
-        XCS_LEXER_ERROR("Cannot find end of string. '' Expected '%c', got '\\n'\n", token, first);
+        XCS_LEXER_ERROR("Cannot find end of string. Expected '%c', got '\\n'\n", token, first);
     }
 
     token->type = TK_STR;
@@ -326,9 +386,8 @@ void xcll_lex_str_multiline(XcStringView* s, XcLuaToken* token, XcLuaLexContext*
     if (idx == XCS_NOT_FOUND) {
         XCS_LEXER_ERROR("Cannot find end of multi-line string. Expected ']]' but got <EOF>.", token);
     }
-    size_t len = idx == 0 ? 0 : idx; // 1 char before [[
     token->view = *s;
-    token->view.count = len;
+    token->view.count = idx; // 1 char before [[
     token->type = TK_STR;
     xcs_chop_left(s, idx + 2); // chop off str, including trailing ]]
     ctx->didWrite = true;
@@ -395,6 +454,116 @@ void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexCont
     ctx->mode = XCLL_MODE_NONE;
 }
 
+void xcll_lex_operator(XcStringView* s, XcLuaToken* token, XcLuaLexContext* ctx) {
+    char first = xcs_at(s, 0), second, third;
+    XcStringView view = xcs_substring(s, 0, 1);
+    // one-char operators
+    switch (first) {
+        case PLUS:
+        case MINUS:
+        case MUL:
+        case MOD:
+        case EXP:
+        case LEN:
+        case COMMA:
+        case LPAREN:
+        case RPAREN:
+        case LBRACE:
+        case RBRACE:
+        case LBRACK:
+        case RBRACK:
+        case COLON:
+        case SEMICOLON: {
+            token->type = charToTypeMap[first];
+            token->view = view;
+            goto XCLL_LLEX_OP_RET;
+        }
+    }
+
+    bool isSingle = s->count == 1;
+    second = xcs_at(s, isSingle ? 0 : 1);
+    switch (first) {
+        case DOT: {
+            if (!isSingle && first == second && s->count >= 3 && first == xcs_at(s, 2)) {
+                token->type = TK_VARIADIC;
+                view = xcs_substring(s, 0, 3);
+            } else if (!isSingle && first == second) {
+                token->type = TK_CONCAT;
+                view = xcs_substring(s, 0, 2);
+            } else {
+                token->type = TK_DOT;
+            }
+        }; break;
+        case LT: {
+            if (!isSingle && first == second) {
+                token->type = TK_LSHIFT;
+                view = xcs_substring(s, 0, 2);
+            } else if (!isSingle && second == EQ) {
+                token->type = TK_LTE;
+                view = xcs_substring(s, 0, 2);
+            } else {
+                token->type = TK_LT;
+            }
+        }; break;
+        case GT: {
+            if (!isSingle && first == second) {
+                token->type = TK_RSHIFT;
+                view = xcs_substring(s, 0, 2);
+            } else if (!isSingle && second == EQ) {
+                token->type = TK_GTE;
+                view = xcs_substring(s, 0, 2);
+            } else {
+                token->type = TK_GT;
+            }
+        }; break;
+        case BWAND: {
+            if (!isSingle && first == second) {
+                token->type = TK_AND;
+                view = xcs_substring(s, 0, 2);
+            } else {
+                token->type = TK_BWAND;
+            }
+        }; break;
+        case BWOR: {
+            if (!isSingle && first == second) {
+                token->type = TK_OR;
+                view = xcs_substring(s, 0, 2);
+            } else {
+                token->type = TK_BWOR;
+            }
+        }; break;
+        case EQ: {
+            if (!isSingle && first == second) {
+                token->type = TK_EQ;
+                view = xcs_substring(s, 0, 2);
+            } else {
+                token->type = TK_ASSIGN;
+            }
+        }; break;
+        case DIV: {
+            if (!isSingle && first == second) {
+                token->type = TK_IDIV;
+                view = xcs_substring(s, 0, 2);
+            } else {
+                token->type = TK_DIV;
+            }
+        }; break;
+        case SQUIGGLE: {
+            if (!isSingle && second == EQ) {
+                token->type = TK_NEQ;
+                view = xcs_substring(s, 0, 2);
+            } else {
+                token->type = TK_SQUIGGLE;
+            }
+        }; break;
+    }
+XCLL_LLEX_OP_RET:
+    token->view = view;
+    ctx->didWrite = true;
+    ctx->mode = XCLL_MODE_NONE;
+    xcs_chop_left(s, view.count);
+}
+
 int get_max_token_length(void) {
     int max_len = 0;
     for (int i = 0; i <= TK_EOF; i++) {
@@ -449,7 +618,7 @@ void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token,
      * 3 - String Mode
      *      -> Identified by a beginning '"' or "'" (either are valid and behave identically.)
      *      -> Output the string contained within the quotes
-     * 4 - Symbol Mode
+     * 4 - Operator Mode
      *      -> If the current string exactly matches a defined keyword, output its corresponding token.
      *      -> Must look ahead to ensure we are not skipping information.
      *      -> For example, `local` => `TK_LOCAL`, but `localVar` => TK_IDENT (not this mode)
@@ -498,6 +667,45 @@ void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token,
         else if ('0' <= first && first <= '9') {
             ctx->mode = XCLL_MODE_NUM;
         }
+
+        // operators, keywords, IDENT
+        else {
+            switch (first) {
+                case LT:
+                case GT:
+                case BWAND:
+                case BWOR:
+                case EQ:
+                case PLUS:
+                case MINUS:
+                case MUL:
+                case DIV:
+                case MOD:
+                case EXP:
+                case LEN:
+                case DOT:
+                case COMMA:
+                case LPAREN:
+                case RPAREN:
+                case LBRACE:
+                case RBRACE:
+                case LBRACK:
+                case RBRACK:
+                case COLON:
+                case SEMICOLON:
+                case SQUIGGLE: {
+                    ctx->mode = XCLL_MODE_OPERATOR;
+                }; break;
+
+                default: {
+                    // cannot match to any other mode, so we assume it is an identifier
+                    // though this identifier may not be valid. It is up to the parser
+                    // to validate this, though.
+                    ctx->mode = XCLL_MODE_IDENT;
+                }; break;
+            }
+        }
+
         goto J_LLEX_INPROGRESS;
     }
 
@@ -527,6 +735,11 @@ void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token,
 
     if (ctx->mode == XCLL_MODE_STR_MULTI) {
         xcll_lex_str_multiline(s, token, ctx);
+        goto J_LLEX_WAITING;
+    }
+
+    if (ctx->mode == XCLL_MODE_OPERATOR) {
+        xcll_lex_operator(s, token, ctx);
         goto J_LLEX_WAITING;
     }
 
@@ -590,7 +803,7 @@ XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f, const char* fileName) {
             // BUG: Line numbers + column numbers are way off
             lnno += linesParsed;
             colno = lastLineIdx == XCS_NOT_FOUND ? (colno + old.count) : (old.count - lastLineIdx - 1);
-            printf(XCS_FMT"\n", XCS_Arg(token.view));
+            // xcll_print_token(token);
         }
         printf("%p %llu\n", s.data, s.count);
     }
