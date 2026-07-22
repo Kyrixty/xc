@@ -346,7 +346,7 @@ typedef struct {
 
 static XcLuaLexContext xcllctx;
 
-#define XCS_LEXER_ERROR(fmt, token, ...) _XCS_LEXER_ERROR(fmt, "\n%s@%llu:%llu\n\t"XCS_FMT"\n", \
+#define XCS_LEXER_ERROR(fmt, token, ...) _XCS_LEXER_ERROR(fmt, "\n%s@%llu:%llu\n\n\t"XCS_FMT"\n\n", \
     (token)->fileName, (token)->line, (token)->col, XCS_Arg(lineSrcMap[(token)->line - 1]) __VA_OPT__(,) __VA_ARGS__)
 static const XcLuaToken NULL_XCLL_TOKEN = {0};
 
@@ -440,8 +440,11 @@ void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexCont
     // For example, 5.123.122.4444 will be lexed fully even though this should error.
     // xcs_collect probably isn't enough here, we probably need to write the number collector by hand
     XcStringView numView = xcs_collect(s, xcf_is_alnum_or_dot);
-    size_t dotIdx = xcs_index_cstr(&numView, ".", 0);
-    size_t hexIdx = xcs_index_cstr(&numView, "0x", 0);
+    int dotIdx = xcs_index_cstr(&numView, ".", 0);
+    int hexIdx = xcs_index_cstr(&numView, "0x", 0);
+    if (hexIdx > 0) { 
+        hexIdx = XCS_NOT_FOUND;
+    }
     if (dotIdx != XCS_NOT_FOUND && hexIdx != XCS_NOT_FOUND) {
         if (dotIdx < hexIdx) {
             XCS_LEXER_ERROR("Unexpected token '0x' while parsing float.", token);
@@ -449,7 +452,7 @@ void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexCont
             XCS_LEXER_ERROR("Unexpected token '.' while parsing hex number.", token);
         }
     }
-    
+
     char* numBuf = ALLOC_ARRAY(mem, char, numView.count + 1);
     numBuf[numView.count] = 0;
     xc_memcpy(numBuf, numView.data, numView.count);
@@ -472,14 +475,11 @@ void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexCont
         token->val.dec = v;
         token->type = TK_FLOAT;
     } else if (hexIdx != XCS_NOT_FOUND) {
-        // Must be of the form '0xffac...'. If x is found later, it is invalid.
-        if (hexIdx != 0) {
-            XCS_LEXER_ERROR("Error while parsing hex number: '0x' found at index %llu but expected at index 0.", token, hexIdx);
-        }
+        size_t nParsed = 2;
         //HACK
-        size_t nParsed = 0;
         int num = xc_parse_int(numView.data + 2, 16, &nParsed);
-        if (nParsed != numView.count - 2) {
+        nParsed += 2; // 0x
+        if (nParsed != numView.count) {
             XCS_LEXER_ERROR("Error while parsing hex number: '"XCS_FMT"' is invalid (parsed %llu chars).", token, XCS_Arg(numView), nParsed);
         }
         token->type = TK_INT_16;
@@ -489,6 +489,9 @@ void xcll_lex_num(arena_t* mem, XcStringView* s, XcLuaToken* token, XcLuaLexCont
     }
 
     // Fortunately, in all cases the view parsing is the same
+    if (xcs_empty(&numView)) {
+        XCS_LEXER_ERROR("malformed number near "XCS_FMT"\n", token, XCS_Arg(numView));
+    }
     token->view = numView;
     xcs_chop_left(s, numView.count);
     ctx->didWrite = true;
@@ -699,8 +702,10 @@ void xcll_lex(arena_t* mem, XcStringView* s, XcLuaToken* token,
     // TODO: need line + col numbers
     // TODO: each mode should have it's own handler that just gets called from here. We can just interpret the context here and route to the correct goto label.
     // IDEA: just pass lexeme into lex functions in case we want to verify outputs or something along those lines.
-    // BUG: as noted in xcll_lex_num, many of these lex functions need to validate the input form and surrounding characters
-    // BUG: (ct'd) in general we have been testing for lexing valid input. But we haven't really considered many invalid inputs (i.e. 55555hello => TK_INT_10, TK_IDENT when it should error instead)
+    // NOTE: removed the 2 previous BUG notices. After thinking about it some more and experimenting with lua compilers,
+    // I have decided that the best path is likely to just have the lexer spit out the largest token it can (which is what it
+    // currently does). Instead, it will only error if it can't match the set pattern to the target view
+    // (so `1234hello`, for example, WILL still error.)
     XcLuaToken lexeme = {0};
     *s = xcs_trim_left(s); // Remove leading whitespace
     if (ctx->mode == XCLL_MODE_NONE) {
@@ -844,7 +849,7 @@ J_LLEX_WAITING:
     }
 }
 
-void setupLineSrcMap(arena_t* mem, const XcStringView* source) {
+void setup_line_src_map(arena_t* mem, const XcStringView* source) {
     size_t nLines = xcs_count(source, '\n') + 1;
     size_t lastLineIdx = 0;
     lineSrcMap = ALLOC_ARRAY(mem, XcStringView, nLines);
@@ -874,7 +879,7 @@ XcLuaTokens xc_lualex_tokenize(arena_t* mem, FILE* f, const char* fileName) {
     size_t lnno = 1, colno = 0;
     XcLuaToken token = {0};
     token.fileName = fileName;
-    setupLineSrcMap(mem, &s);
+    setup_line_src_map(mem, &s);
 
     while (!xcs_empty(&s)) {
         XcStringView old = s;
